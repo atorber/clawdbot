@@ -50,7 +50,7 @@ export function renderOverview(props: OverviewProps) {
           <div style="margin-top: 6px;">
             <a
               class="session-link"
-              href="https://docs.clawd.bot/web/dashboard"
+              href="https://docs.molt.bot/web/dashboard"
               target="_blank"
               rel="noreferrer"
               title="${t("overview.docsControlUiAuthTitle")}"
@@ -66,7 +66,7 @@ export function renderOverview(props: OverviewProps) {
         <div style="margin-top: 6px;">
           <a
             class="session-link"
-            href="https://docs.clawd.bot/web/dashboard"
+            href="https://docs.molt.bot/web/dashboard"
             target="_blank"
             rel="noreferrer"
             title="${t("overview.docsControlUiAuthTitle")}"
@@ -93,7 +93,7 @@ export function renderOverview(props: OverviewProps) {
         <div style="margin-top: 6px;">
           <a
             class="session-link"
-            href="https://docs.clawd.bot/gateway/tailscale"
+            href="https://docs.molt.bot/gateway/tailscale"
             target="_blank"
             rel="noreferrer"
             title="${t("overview.docsTailscaleTitle")}"
@@ -102,7 +102,7 @@ export function renderOverview(props: OverviewProps) {
           <span class="muted"> · </span>
           <a
             class="session-link"
-            href="https://docs.clawd.bot/web/control-ui#insecure-http"
+            href="https://docs.molt.bot/web/control-ui#insecure-http"
             target="_blank"
             rel="noreferrer"
             title="${t("overview.docsInsecureHttpTitle")}"
