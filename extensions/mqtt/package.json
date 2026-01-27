@@ -21,7 +21,7 @@
     }
   },
   "dependencies": {
-    "clawdbot": "workspace:*",
+    "moltbot": "workspace:*",
     "mqtt": "^5.10.0",
     "zod": "^4.3.6"
   }

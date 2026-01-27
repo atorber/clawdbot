@@ -1,4 +1,4 @@
-import { buildChannelConfigSchema } from "clawdbot/plugin-sdk";
+import { buildChannelConfigSchema } from "moltbot/plugin-sdk";
 import { z } from "zod";
 
 const allowFromEntry = z.union([z.string(), z.number()]);

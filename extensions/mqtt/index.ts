@@ -1,4 +1,4 @@
-import type { ClawdbotPluginApi } from "clawdbot/plugin-sdk";
+import type { ClawdbotPluginApi } from "moltbot/plugin-sdk";
 
 import { mqttPlugin } from "./src/channel.js";
 import { setMqttRuntime } from "./src/runtime.js";

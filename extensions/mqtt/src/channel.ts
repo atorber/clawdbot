@@ -1,8 +1,8 @@
-import type { ClawdbotConfig } from "clawdbot/plugin-sdk";
+import type { ClawdbotConfig } from "moltbot/plugin-sdk";
 import {
   buildChannelConfigSchema,
   type ChannelPlugin,
-} from "clawdbot/plugin-sdk";
+} from "moltbot/plugin-sdk";
 
 import { MqttConfigSchema } from "./config-schema.js";
 import { createMqttClient, type MqttClientHandle } from "./client.js";

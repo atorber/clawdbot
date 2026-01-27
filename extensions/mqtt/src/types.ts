@@ -1,5 +1,5 @@
-import type { ClawdbotConfig } from "clawdbot/plugin-sdk";
-import { normalizeAccountId } from "clawdbot/plugin-sdk";
+import type { ClawdbotConfig } from "moltbot/plugin-sdk";
+import { normalizeAccountId } from "moltbot/plugin-sdk";
 
 import type { MqttAccountConfig } from "./config-schema.js";
 
