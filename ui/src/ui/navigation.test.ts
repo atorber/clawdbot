@@ -175,11 +175,11 @@ describe("inferBasePathFromPathname", () => {
 
 describe("TAB_GROUPS", () => {
   it("contains all expected groups", () => {
-    const labels = TAB_GROUPS.map((g) => g.label);
-    expect(labels).toContain("Chat");
-    expect(labels).toContain("Control");
-    expect(labels).toContain("Agent");
-    expect(labels).toContain("Settings");
+    const ids = TAB_GROUPS.map((g) => g.id);
+    expect(ids).toContain("chat");
+    expect(ids).toContain("control");
+    expect(ids).toContain("agent");
+    expect(ids).toContain("settings");
   });
 
   it("all tabs are unique", () => {

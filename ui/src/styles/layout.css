@@ -187,6 +187,37 @@
   height: 12px;
 }
 
+.topbar-status .lang-switcher {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--secondary);
+}
+
+.topbar-status .lang-switcher__btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color var(--duration-fast) ease, background var(--duration-fast) ease;
+}
+
+.topbar-status .lang-switcher__btn:hover {
+  color: var(--text);
+}
+
+.topbar-status .lang-switcher__btn.active {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
 /* ===========================================
    Navigation Sidebar
    =========================================== */
