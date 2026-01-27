@@ -1,0 +1,9 @@
+{
+  "id": "mqtt",
+  "channels": ["mqtt"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

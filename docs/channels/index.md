@@ -24,6 +24,7 @@ Text is supported everywhere; media and reactions vary by channel.
 - [Nextcloud Talk](/channels/nextcloud-talk) — Self-hosted chat via Nextcloud Talk (plugin, installed separately).
 - [Matrix](/channels/matrix) — Matrix protocol (plugin, installed separately).
 - [Nostr](/channels/nostr) — Decentralized DMs via NIP-04 (plugin, installed separately).
+- [MQTT](/channels/mqtt) — Arbitrary MQTT broker; JSON payload + topic-based sessions (plugin, installed separately).
 - [Tlon](/channels/tlon) — Urbit-based messenger (plugin, installed separately).
 - [Zalo](/channels/zalo) — Zalo Bot API; Vietnam's popular messenger (plugin, installed separately).
 - [Zalo Personal](/channels/zalouser) — Zalo personal account via QR login (plugin, installed separately).

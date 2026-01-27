@@ -1,0 +1,28 @@
+{
+  "name": "@clawdbot/mqtt",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Clawdbot MQTT channel plugin for arbitrary MQTT broker access",
+  "clawdbot": {
+    "extensions": ["./index.ts"],
+    "channel": {
+      "id": "mqtt",
+      "label": "MQTT",
+      "selectionLabel": "MQTT",
+      "docsPath": "/channels/mqtt",
+      "docsLabel": "mqtt",
+      "blurb": "Arbitrary MQTT broker; JSON payload + topic-based sessions.",
+      "order": 60
+    },
+    "install": {
+      "npmSpec": "@clawdbot/mqtt",
+      "localPath": "extensions/mqtt",
+      "defaultChoice": "npm"
+    }
+  },
+  "dependencies": {
+    "clawdbot": "workspace:*",
+    "mqtt": "^5.10.0",
+    "zod": "^4.3.6"
+  }
+}
