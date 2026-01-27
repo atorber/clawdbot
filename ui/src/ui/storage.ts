@@ -1,5 +1,6 @@
 const KEY = "clawdbot.control.settings.v1";
 
+import { inferLocale, type Locale } from "./i18n";
 import type { ThemeMode } from "./theme";
 
 export type UiSettings = {
@@ -8,6 +9,7 @@ export type UiSettings = {
   sessionKey: string;
   lastActiveSessionKey: string;
   theme: ThemeMode;
+  locale?: Locale; // UI language: en | zh; default from browser
   chatFocusMode: boolean;
   chatShowThinking: boolean;
   splitRatio: number; // Sidebar split ratio (0.4 to 0.7, default 0.6)
@@ -27,6 +29,7 @@ export function loadSettings(): UiSettings {
     sessionKey: "main",
     lastActiveSessionKey: "main",
     theme: "system",
+    locale: inferLocale(),
     chatFocusMode: false,
     chatShowThinking: true,
     splitRatio: 0.6,
@@ -61,6 +64,10 @@ export function loadSettings(): UiSettings {
         parsed.theme === "system"
           ? parsed.theme
           : defaults.theme,
+      locale:
+        parsed.locale === "en" || parsed.locale === "zh"
+          ? parsed.locale
+          : defaults.locale,
       chatFocusMode:
         typeof parsed.chatFocusMode === "boolean"
           ? parsed.chatFocusMode

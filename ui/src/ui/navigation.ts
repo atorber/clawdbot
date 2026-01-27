@@ -1,13 +1,16 @@
 import type { IconName } from "./icons.js";
+import { t } from "./i18n.js";
 
+/** Stable id for nav group collapse state; labelKey for i18n. */
 export const TAB_GROUPS = [
-  { label: "Chat", tabs: ["chat"] },
+  { id: "chat", labelKey: "nav.groupChat", tabs: ["chat"] },
   {
-    label: "Control",
+    id: "control",
+    labelKey: "nav.groupControl",
     tabs: ["overview", "channels", "instances", "sessions", "cron"],
   },
-  { label: "Agent", tabs: ["skills", "nodes"] },
-  { label: "Settings", tabs: ["config", "debug", "logs"] },
+  { id: "agent", labelKey: "nav.groupAgent", tabs: ["skills", "nodes"] },
+  { id: "settings", labelKey: "nav.groupSettings", tabs: ["config", "debug", "logs"] },
 ] as const;
 
 export type Tab =
@@ -129,60 +132,39 @@ export function iconForTab(tab: Tab): IconName {
   }
 }
 
-export function titleForTab(tab: Tab) {
-  switch (tab) {
-    case "overview":
-      return "Overview";
-    case "channels":
-      return "Channels";
-    case "instances":
-      return "Instances";
-    case "sessions":
-      return "Sessions";
-    case "cron":
-      return "Cron Jobs";
-    case "skills":
-      return "Skills";
-    case "nodes":
-      return "Nodes";
-    case "chat":
-      return "Chat";
-    case "config":
-      return "Config";
-    case "debug":
-      return "Debug";
-    case "logs":
-      return "Logs";
-    default:
-      return "Control";
-  }
+const TITLE_KEYS: Record<Tab, string> = {
+  overview: "nav.title.overview",
+  channels: "nav.title.channels",
+  instances: "nav.title.instances",
+  sessions: "nav.title.sessions",
+  cron: "nav.title.cron",
+  skills: "nav.title.skills",
+  nodes: "nav.title.nodes",
+  chat: "nav.title.chat",
+  config: "nav.title.config",
+  debug: "nav.title.debug",
+  logs: "nav.title.logs",
+};
+
+export function titleForTab(tab: Tab): string {
+  return t(TITLE_KEYS[tab] ?? "nav.title.overview");
 }
 
-export function subtitleForTab(tab: Tab) {
-  switch (tab) {
-    case "overview":
-      return "Gateway status, entry points, and a fast health read.";
-    case "channels":
-      return "Manage channels and settings.";
-    case "instances":
-      return "Presence beacons from connected clients and nodes.";
-    case "sessions":
-      return "Inspect active sessions and adjust per-session defaults.";
-    case "cron":
-      return "Schedule wakeups and recurring agent runs.";
-    case "skills":
-      return "Manage skill availability and API key injection.";
-    case "nodes":
-      return "Paired devices, capabilities, and command exposure.";
-    case "chat":
-      return "Direct gateway chat session for quick interventions.";
-    case "config":
-      return "Edit ~/.clawdbot/clawdbot.json safely.";
-    case "debug":
-      return "Gateway snapshots, events, and manual RPC calls.";
-    case "logs":
-      return "Live tail of the gateway file logs.";
-    default:
-      return "";
-  }
+const SUBTITLE_KEYS: Record<Tab, string> = {
+  overview: "nav.subtitle.overview",
+  channels: "nav.subtitle.channels",
+  instances: "nav.subtitle.instances",
+  sessions: "nav.subtitle.sessions",
+  cron: "nav.subtitle.cron",
+  skills: "nav.subtitle.skills",
+  nodes: "nav.subtitle.nodes",
+  chat: "nav.subtitle.chat",
+  config: "nav.subtitle.config",
+  debug: "nav.subtitle.debug",
+  logs: "nav.subtitle.logs",
+};
+
+export function subtitleForTab(tab: Tab): string {
+  const key = SUBTITLE_KEYS[tab];
+  return key ? t(key) : "";
 }

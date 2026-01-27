@@ -2,6 +2,7 @@ import { html } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 
 import type { AppViewState } from "./app-view-state";
+import { t } from "./i18n";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation";
 import { icons } from "./icons";
 import { loadChatHistory } from "./controllers/chat";
@@ -89,7 +90,7 @@ export function renderChatControls(state: AppViewState) {
           state.resetToolStream();
           void loadChatHistory(state);
         }}
-        title="Refresh chat history"
+        title="${t("chat.refreshHistory")}"
       >
         ${refreshIcon}
       </button>
@@ -106,8 +107,8 @@ export function renderChatControls(state: AppViewState) {
         }}
         aria-pressed=${showThinking}
         title=${disableThinkingToggle
-          ? "Disabled during onboarding"
-          : "Toggle assistant thinking/working output"}
+          ? t("chat.disabledOnboarding")
+          : t("chat.toggleThinking")}
       >
         ${icons.brain}
       </button>
@@ -123,8 +124,8 @@ export function renderChatControls(state: AppViewState) {
         }}
         aria-pressed=${focusActive}
         title=${disableFocusToggle
-          ? "Disabled during onboarding"
-          : "Toggle focus mode (hide sidebar + page header)"}
+          ? t("chat.disabledOnboarding")
+          : t("chat.toggleFocusMode")}
       >
         ${focusIcon}
       </button>
