@@ -10,6 +10,7 @@ const MQTT_DEFAULTS = {
   ignoreMessagesOlderThanMs: 300_000,
   cleanSession: false,
   keepalive: 60,
+  connectTimeoutMs: 60_000,
   qosSubscribe: 1 as 0 | 1 | 2,
   qosPublish: 1 as 0 | 1 | 2,
   maxMessageSize: 200_000,
@@ -35,6 +36,7 @@ export type ResolvedMqttAccount = {
   ignoreMessagesOlderThanMs: number;
   cleanSession: boolean;
   keepalive: number;
+  connectTimeoutMs: number;
   qos: { subscribe: 0 | 1 | 2; publish: 0 | 1 | 2 };
   maxMessageSize: number;
   fromExtractor: "topic" | "payload" | "topic+payload";
@@ -164,6 +166,8 @@ export function resolveMqttAccount(opts: {
       raw.ignoreMessagesOlderThanMs ?? MQTT_DEFAULTS.ignoreMessagesOlderThanMs,
     cleanSession: raw.cleanSession ?? MQTT_DEFAULTS.cleanSession,
     keepalive: raw.keepalive ?? MQTT_DEFAULTS.keepalive,
+    connectTimeoutMs:
+      (raw as MqttAccountConfig & { connectTimeout?: number }).connectTimeout ?? MQTT_DEFAULTS.connectTimeoutMs,
     qos: {
       subscribe: (raw.qos?.subscribe ?? MQTT_DEFAULTS.qosSubscribe) as 0 | 1 | 2,
       publish: (raw.qos?.publish ?? MQTT_DEFAULTS.qosPublish) as 0 | 1 | 2,

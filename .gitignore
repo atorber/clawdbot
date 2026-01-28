@@ -72,3 +72,5 @@ USER.md
 # local tooling
 .serena/
 .wiki/
+extensions/mqtt/scripts/test-connect.js
+extensions/mqtt/scripts/test-send-message.js

@@ -26,6 +26,7 @@ export function createMqttClient(opts: CreateMqttClientOptions): Promise<MqttCli
       clientId: account.clientId,
       clean: account.cleanSession,
       keepalive: account.keepalive,
+      connectTimeout: account.connectTimeoutMs ?? 60_000,
       reconnectPeriod: RECONNECT_PERIOD_MS,
       username: account.username,
       password: account.password,

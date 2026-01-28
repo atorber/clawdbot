@@ -30,6 +30,7 @@ export const MqttAccountSchema = z.object({
   ignoreMessagesOlderThanMs: z.number().optional(),
   cleanSession: z.boolean().optional(),
   keepalive: z.number().optional(),
+  connectTimeout: z.number().optional(),
   qos: mqttQosSchema.optional(),
   maxMessageSize: z.number().optional(),
   fromExtractor: z.enum(["topic", "payload", "topic+payload"]).optional(),
