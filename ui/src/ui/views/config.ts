@@ -108,7 +108,9 @@ function resolveSectionMeta(key: string, schema?: JsonSchema): {
   description?: string;
 } {
   const meta = SECTION_META[key];
-  if (meta) return meta;
+  if (meta) {
+    return { label: t(meta.labelKey), description: t(meta.descriptionKey) };
+  }
   return {
     label: schema?.title ?? humanize(key),
     description: schema?.description ?? "",
@@ -194,11 +196,17 @@ export function renderConfig(props: ConfigProps) {
   const schemaProps = analysis.schema?.properties ?? {};
   const availableSections = SECTIONS.filter((s) => s.key in schemaProps);
 
-  // Add any sections in schema but not in our list
+  // Add any sections in schema but not in our list; use SECTION_META i18n when available
   const knownKeys = new Set(SECTIONS.map((s) => s.key));
   const extraSections = Object.keys(schemaProps)
     .filter((k) => !knownKeys.has(k))
-    .map((k) => ({ key: k, label: k.charAt(0).toUpperCase() + k.slice(1) }));
+    .map((k) => {
+      const meta = SECTION_META[k];
+      return {
+        key: k,
+        label: meta ? t(meta.labelKey) : k.charAt(0).toUpperCase() + k.slice(1),
+      };
+    });
 
   const allSections: Array<{ key: string; label: string }> = [
     ...availableSections.map((s) => ({ key: s.key, label: t(s.labelKey) })),
