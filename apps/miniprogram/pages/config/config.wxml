@@ -1,0 +1,40 @@
+<view class="container config-page">
+  <view wx:if="{{lastConnectedBroker}}" class="card current-connection">
+    <view class="label">当前连接</view>
+    <text class="current-connection-text">{{lastConnectedBroker}}</text>
+  </view>
+  <view class="section-title">连接</view>
+  <view class="card">
+    <view class="label">Broker 地址</view>
+    <input class="input" placeholder="wss://host:port/mqtt" value="{{brokerUrl}}" data-field="brokerUrl" bindinput="onInput" />
+  </view>
+  <view class="card row">
+    <view class="field">
+      <view class="label">用户名</view>
+      <input class="input" placeholder="可选" value="{{username}}" data-field="username" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <view class="label">密码</view>
+      <input class="input" password placeholder="可选" value="{{password}}" data-field="password" bindinput="onInput" />
+    </view>
+  </view>
+  <view class="section-title">Topic</view>
+  <view class="card">
+    <view class="label">客户端 ID</view>
+    <input class="input" placeholder="如 my-client" value="{{clientId}}" data-field="clientId" bindinput="onInput" />
+  </view>
+  <view class="card row">
+    <view class="field">
+      <view class="label">入站 Topic</view>
+      <input class="input" placeholder="devices/+/in" value="{{topicIn}}" data-field="topicIn" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <view class="label">出站 Topic</view>
+      <input class="input" placeholder="devices/+/out" value="{{topicOut}}" data-field="topicOut" bindinput="onInput" />
+    </view>
+  </view>
+  <view class="card actions">
+    <button class="btn-primary" bindtap="saveAndBack">保存并返回</button>
+    <button class="btn-secondary {{testing ? 'btn-disabled' : ''}}" bindtap="testConnect" disabled="{{testing}}">连接测试</button>
+  </view>
+</view>

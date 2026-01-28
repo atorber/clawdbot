@@ -1,0 +1,8 @@
+{
+  "name": "clawdbot-mqtt-miniprogram",
+  "version": "0.1.0",
+  "description": "MQTT channel 配套微信小程序客户端",
+  "main": "app.js",
+  "scripts": {},
+  "dependencies": {}
+}

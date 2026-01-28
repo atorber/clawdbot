@@ -1,0 +1,39 @@
+<view class="container chat-container">
+  <view class="status-bar">
+    <view class="status-pill">
+      <view class="status-dot status-dot-{{connectionState}}"></view>
+      <text class="status-text">{{connectionStateText}}</text>
+    </view>
+    <view class="icon-btns">
+      <image class="icon-btn" src="/images/{{ connected ? 'icon-link-off' : 'icon-refresh' }}.svg" mode="aspectFit" bindtap="toggleConnect" />
+      <image class="icon-btn" src="/images/icon-settings.svg" mode="aspectFit" bindtap="goConfig" />
+    </view>
+  </view>
+  <scroll-view class="message-list" scroll-y scroll-into-view="{{scrollToId}}" scroll-with-animation>
+    <block wx:for="{{messages}}" wx:key="id">
+      <view id="msg-{{item.id}}" class="message-item {{item.role}}">
+        <view class="bubble">{{item.content}}</view>
+        <view class="time">{{item.timeText}}</view>
+      </view>
+    </block>
+    <view wx:if="{{pendingReply}}" id="msg-pending" class="message-item assistant">
+      <view class="bubble typing-bubble">
+        <view class="typing-dots"><text class="dot"></text><text class="dot"></text><text class="dot"></text></view>
+        <text class="typing-text">等待回复…</text>
+      </view>
+    </view>
+    <view wx:if="{{messages.length === 0 && !pendingReply}}" class="empty-hint">
+      <text class="empty-hint-icon">↓</text>
+      <text class="empty-hint-text">输入消息与 Gateway 对话</text>
+    </view>
+  </scroll-view>
+  <view wx:if="{{lastError}}" class="error-bar">
+    <text class="error-text">{{lastError}}</text>
+    <text class="error-action" bindtap="retryConnect">重试</text>
+    <text class="error-action" bindtap="dismissError">×</text>
+  </view>
+  <view class="input-bar">
+    <textarea class="input-inner" placeholder="输入消息发送给 Gateway…" value="{{inputText}}" bindinput="onInput" bindconfirm="send" auto-height="{{true}}" maxlength="-1" fixed="{{false}}" show-confirm-bar="{{false}}" />
+    <button class="btn-send" size="mini" bindtap="send" disabled="{{!connected || sending}}">发送</button>
+  </view>
+</view>

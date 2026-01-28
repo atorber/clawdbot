@@ -1,0 +1,60 @@
+.config-page .section-title {
+  font-size: 28rpx;
+  color: var(--text-secondary);
+  padding: 24rpx 0 12rpx;
+  margin-top: 8rpx;
+}
+
+.config-page .section-title:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.config-page .current-connection {
+  border-left: 6rpx solid var(--success);
+}
+
+.config-page .current-connection-text {
+  font-size: 26rpx;
+  color: var(--text-primary);
+}
+
+.config-page .row {
+  display: flex;
+  gap: 24rpx;
+}
+
+.config-page .row .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.config-page .actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.config-page .actions .btn-primary {
+  order: 1;
+}
+
+.config-page .actions .btn-secondary {
+  order: 2;
+}
+
+.config-page .about-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.config-page .about-version {
+  font-size: 26rpx;
+  color: var(--text-secondary);
+}
+
+.config-page .about-doc {
+  font-size: 26rpx;
+  color: var(--accent);
+}
