@@ -23,6 +23,7 @@
   "dependencies": {
     "moltbot": "workspace:*",
     "mqtt": "^5.10.0",
+    "ws": "^8.19.0",
     "zod": "^4.3.6"
   }
 }

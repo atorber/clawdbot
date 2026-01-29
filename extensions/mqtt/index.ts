@@ -1,5 +1,6 @@
 import type { ClawdbotPluginApi } from "moltbot/plugin-sdk";
 
+import { startGatewayBridge } from "./src/bridge.js";
 import { mqttPlugin } from "./src/channel.js";
 import { setMqttRuntime } from "./src/runtime.js";
 
@@ -10,6 +11,7 @@ const plugin = {
   register(api: ClawdbotPluginApi) {
     setMqttRuntime(api.runtime);
     api.registerChannel({ plugin: mqttPlugin });
+    startGatewayBridge(api.runtime, new AbortController().signal);
   },
 };
 

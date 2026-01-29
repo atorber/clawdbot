@@ -1,29 +1,29 @@
 # @clawdbot/mqtt
 
-MQTT channel plugin for Clawdbot. Connects to an arbitrary MQTT broker and supports two modes:
+Clawdbot 的 MQTT 通道插件，可连接任意 MQTT Broker，支持两种模式：
 
-1. **Channel (chat):** subscribe to configured topics; payload must be JSON with `messageId` and `text`; replies published to a separate topic.
-2. **Gateway Bridge:** bridges the full gateway JSON-RPC protocol over MQTT topics (`moltbot/gw/{clientId}/{role}/req|res|evt`) so that Android and other MQTT clients can use the same capabilities as WebSocket clients (operator + node sessions, chat, canvas, etc.).
+1. **通道（聊天）模式**：订阅配置的 topic；消息体须为带 `messageId` 和 `text` 的 JSON；回复发布到单独的出站 topic。
+2. **Gateway Bridge 模式**：在 MQTT topic（`moltbot/gw/{clientId}/{role}/req|res|evt`）上桥接完整网关 JSON-RPC 协议，使 Android 等 MQTT 客户端具备与 WebSocket 客户端相同能力（operator + node 双会话、聊天、Canvas 等）。
 
-## Overview (Channel mode)
+## 概述（通道模式）
 
-- **Inbound:** subscribe to configured topics; payload must be JSON with `messageId` and `text`.
-- **Outbound:** replies are published to a topic that must **not** overlap with subscribe topics (topic separation is enforced).
-- **Defaults:** retain messages ignored; messages older than 5 minutes after startup are filtered; QoS 1; `cleanSession: false`.
+- **入站**：订阅配置的 topic；消息体须为带 `messageId` 和 `text` 的 JSON。
+- **出站**：回复发布到**不得**与订阅 topic 重叠的 topic（入站/出站 topic 分离）。
+- **默认**：忽略保留消息；启动后超过 5 分钟的消息被过滤；QoS 1；`cleanSession: false`。
 
-## Installation
+## 安装
 
 ```bash
 clawdbot plugins install @clawdbot/mqtt
 ```
 
-Or from a local checkout:
+或从本地目录安装：
 
 ```bash
 clawdbot plugins install --link /path/to/clawdbot/extensions/mqtt
 ```
 
-## Minimal configuration
+## 最小配置
 
 ```json
 {
@@ -46,7 +46,7 @@ clawdbot plugins install --link /path/to/clawdbot/extensions/mqtt
 }
 ```
 
-### Username / password auth
+### 用户名 / 密码鉴权
 
 在 account 下增加 `username`、`password` 即可走用户名密码鉴权：
 
@@ -75,12 +75,12 @@ clawdbot plugins install --link /path/to/clawdbot/extensions/mqtt
 
 密码也可用环境变量占位，由 Gateway 启动前展开，例如：`"password": "${MQTT_PASSWORD}"`，并设置 `export MQTT_PASSWORD=...`。
 
-- **brokerUrl:** `mqtt://` or `mqtts://` (required).
-- **topics.subscribe:** list of topics to subscribe to (required); MQTT wildcards `+` and `#` are supported.
-- **topics.publishMode:** `"direct"` (default) or `"prefix"`.
-- **topics.publishPrefix:** when `publishMode` is `"prefix"`, the template for reply topic; `{to}` is replaced by the single wildcard segment from the subscribed topic (e.g. `devices/+/in` + topic `devices/device-123/in` → `devices/device-123/out`).
+- **brokerUrl**：`mqtt://` 或 `mqtts://`（必填）。
+- **topics.subscribe**：要订阅的 topic 列表（必填）；支持 MQTT 通配符 `+` 和 `#`。
+- **topics.publishMode**：`"direct"`（默认）或 `"prefix"`。
+- **topics.publishPrefix**：当 `publishMode` 为 `"prefix"` 时，回复 topic 的模板；`{to}` 会被入站 topic 中匹配到的那一段替换（例如 `devices/+/in` + 实际 topic `devices/device-123/in` → `devices/device-123/out`）。
 
-**Important:** The reply topic must not be in `topics.subscribe`. Use different paths for in and out (e.g. `.../in` vs `.../out`).
+**注意**：回复 topic 不能出现在 `topics.subscribe` 中，入站与出站请使用不同路径（例如 `.../in` 与 `.../out`）。
 
 ## 如何用 MQTT 客户端发消息给 Gateway
 
@@ -173,9 +173,9 @@ client.on("message", (topic, payload) => {
 日志里 MQTT 相关一般会打 `gateway/channels/mqtt` 或 `[default] MQTT ...`：
 
 - **连接与订阅**：`MQTT connected`、`MQTT subscribed to ...` 表示已连上并订阅好。
-- **出错**：`MQTT error`、`connack timeout` 等表示连接或鉴权有问题，先按 [Troubleshooting](#troubleshooting) 处理。
+- **出错**：`MQTT error`、`connack timeout` 等表示连接或鉴权有问题，先按 [故障排除](#故障排除) 处理。
 
-若使用 Control 或 CLI 的日志流，可专门过滤 `mqtt` 或 `channels/mqtt` 便于只看 MQTT。
+若使用 Control 或 CLI 的日志流，可过滤 `mqtt` 或 `channels/mqtt` 便于只看 MQTT 相关日志。
 
 ### 3. 用「一发一收」验证链路
 
@@ -239,59 +239,59 @@ MQTT_BROKER_URL="mqtt://your-broker:1883" pnpm exec node scripts/test-connect.js
 
 按「连接 → 入站格式与 topic → 出站 topic 与订阅」逐项对照，一般能较快定位问题。
 
-## Inbound message format (JSON)
+## 入站消息格式（JSON）
 
-Payload must be JSON. Required fields:
+消息体须为 JSON。必填字段：
 
-- **messageId:** unique id (used for deduplication).
-- **text:** message body.
+- **messageId**：唯一 id，用于去重。
+- **text**：消息正文。
 
-Optional:
+可选字段：
 
-- **timestamp:** Unix ms or ISO8601 (used for age filtering).
-- **replyTo:** messageId of the message being replied to.
-- **clientId:** used when `fromExtractor` is `"payload"` or `"topic+payload"`.
-- **replyToTopic:** MQTT topic to publish replies to (required when `publishMode` is `"direct"` and no `publishPrefix`).
+- **timestamp**：Unix 毫秒或 ISO8601，用于按时间过滤。
+- **replyTo**：被回复消息的 messageId。
+- **clientId**：当 `fromExtractor` 为 `"payload"` 或 `"topic+payload"` 时使用。
+- **replyToTopic**：回复要发往的 MQTT topic（当 `publishMode` 为 `"direct"` 且未配置 `publishPrefix` 时必填）。
 
-Example:
+示例：
 
 ```json
 {
   "messageId": "unique-id-123",
-  "text": "Hello",
+  "text": "你好",
   "timestamp": 1706342400000,
   "replyToTopic": "devices/device-123/out"
 }
 ```
 
-## Gateway Bridge
+## Gateway Bridge（网关桥）
 
-When **Gateway Bridge** is enabled, the plugin subscribes to MQTT topics where clients (e.g. Android app) publish gateway **requests** and forwards them to the local gateway WebSocket; responses and events are published back to MQTT. This allows devices that cannot use WebSocket discovery to connect via a shared MQTT broker while keeping full gateway protocol (operator + node sessions, chat, canvas, etc.).
+启用 **Gateway Bridge** 后，插件会订阅客户端（如 Android 应用）发布网关**请求**的 MQTT topic，并将请求转发到本地网关 WebSocket；响应和事件再发布回 MQTT。这样无法使用 WebSocket 发现的设备可通过共享 MQTT Broker 连接，同时保持完整网关协议（operator + node 双会话、聊天、Canvas 等）。
 
-### Topic layout
+### Topic 约定
 
-| Role    | Client publishes (req)              | Gateway → client (res / evt)              |
-|---------|--------------------------------------|-------------------------------------------|
-| operator | `moltbot/gw/{clientId}/operator/req` | `moltbot/gw/{clientId}/operator/res` \| `evt` |
-| node    | `moltbot/gw/{clientId}/node/req`     | `moltbot/gw/{clientId}/node/res` \| `evt`     |
+| 角色     | 客户端发布（req）                      | Gateway → 客户端（res / evt）                  |
+|----------|----------------------------------------|------------------------------------------------|
+| operator | `moltbot/gw/{clientId}/operator/req`   | `moltbot/gw/{clientId}/operator/res` \| `evt`  |
+| node     | `moltbot/gw/{clientId}/node/req`        | `moltbot/gw/{clientId}/node/res` \| `evt`      |
 
-Message format is the same as over WebSocket: `{ type: "req", id, method, params }` → `{ type: "res", id, ok, payload?, error? }` and `{ type: "event", event, payload? }`.
+消息格式与 WebSocket 一致： `{ type: "req", id, method, params }` → `{ type: "res", id, ok, payload?, error? }`，以及 `{ type: "event", event, payload? }`。
 
-### Bridge configuration
+### Bridge 配置
 
-Under `channels.mqtt` add a `gatewayBridge` block:
+在 `channels.mqtt` 下增加 `gatewayBridge` 配置块：
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `false` | Turn on Gateway Bridge |
-| `gatewayWsUrl` | string | `ws://127.0.0.1:18789` | Gateway WebSocket URL the bridge connects to |
-| `brokerUrl` | string | (optional) | MQTT broker URL for the bridge; if omitted, first MQTT account’s broker is used |
-| `username` | string | - | Broker username (or from first account if not set) |
-| `password` | string | - | Broker password (or from first account if not set) |
-| `clientId` | string | auto | MQTT client id used by the bridge |
-| `maxMessageSize` | number | `262144` (256KB) | Max single message size; larger payloads get `PAYLOAD_TOO_LARGE` |
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `enabled` | boolean | `false` | 是否启用 Gateway Bridge |
+| `gatewayWsUrl` | string | `ws://127.0.0.1:18789` | Bridge 连接的网关 WebSocket 地址 |
+| `brokerUrl` | string | 可选 | Bridge 使用的 MQTT Broker 地址；不填则使用第一个 MQTT 账户的 Broker |
+| `username` | string | - | Broker 用户名（未填则可用第一个账户的） |
+| `password` | string | - | Broker 密码（未填则可用第一个账户的） |
+| `clientId` | string | 自动 | Bridge 使用的 MQTT 客户端 id |
+| `maxMessageSize` | number | `262144`（256KB） | 单条消息最大长度；超出会返回 `PAYLOAD_TOO_LARGE` |
 
-Example (bridge uses its own broker):
+示例（Bridge 使用独立 Broker）：
 
 ```json
 {
@@ -309,7 +309,7 @@ Example (bridge uses its own broker):
 }
 ```
 
-Example (bridge reuses first MQTT account’s broker; omit `brokerUrl`):
+示例（Bridge 复用第一个 MQTT 账户的 Broker，不填 `brokerUrl`）：
 
 ```json
 {
@@ -329,37 +329,37 @@ Example (bridge reuses first MQTT account’s broker; omit `brokerUrl`):
 }
 ```
 
-The bridge connects to the gateway from localhost, so the gateway treats it as a local client and does not require device nonce for connect. Logs use subsystem `mqtt-bridge` (e.g. `[bridge] subscribed to req topics`).
+Bridge 从本机连接网关，网关会将其视为本地客户端，connect 时不需要 device nonce。日志使用子系统 `mqtt-bridge`（例如 `[bridge] subscribed to req topics`）。
 
-## Configuration reference (v2)
+## 配置参考（v2）
 
-**Account** (channel mode):
+**账户**（通道模式）：
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `brokerUrl` | string | required | `mqtt://` or `mqtts://` URL |
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `brokerUrl` | string | 必填 | `mqtt://` 或 `mqtts://` 地址 |
 | `username` | string | - | Broker 用户名（鉴权用） |
 | `password` | string | - | Broker 密码（鉴权用，支持 `${ENV_VAR}` 占位） |
-| `topics.subscribe` | string[] | required | Topics to subscribe to |
-| `topics.publishPrefix` | string | - | Reply topic template (`{to}` placeholder) |
-| `topics.publishMode` | `"direct"` \| `"prefix"` | `"direct"` | How reply topic is determined |
-| `ignoreRetainedMessages` | boolean | `true` | Ignore retain flag |
-| `ignoreMessagesOlderThanMs` | number | `300000` | Ignore messages older than this after startup |
+| `topics.subscribe` | string[] | 必填 | 要订阅的 topic 列表 |
+| `topics.publishPrefix` | string | - | 回复 topic 模板（`{to}` 占位符） |
+| `topics.publishMode` | `"direct"` \| `"prefix"` | `"direct"` | 回复 topic 的确定方式 |
+| `ignoreRetainedMessages` | boolean | `true` | 是否忽略保留消息 |
+| `ignoreMessagesOlderThanMs` | number | `300000` | 启动后忽略早于该时间的消息（毫秒） |
 | `cleanSession` | boolean | `false` | MQTT clean session |
-| `keepalive` | number | `60` | Keepalive in seconds |
+| `keepalive` | number | `60` | 保活间隔（秒） |
 | `connectTimeout` | number | `60000` | 等待 CONNACK 的超时（毫秒）；网络慢或 broker 压力大时可调大 |
-| `qos.subscribe` / `qos.publish` | 0 \| 1 \| 2 | `1` | QoS for subscribe and publish |
-| `maxMessageSize` | number | `200000` | Max publish size (bytes) |
-| `fromExtractor` | `"topic"` \| `"payload"` \| `"topic+payload"` | `"topic"` | How to derive sender id |
-| `allowFrom` | (string \| number)[] | `[]` | Topic/sender allowlist |
-| `dmPolicy` | string | - | `pairing`, `allowlist`, `open`, `disabled` |
+| `qos.subscribe` / `qos.publish` | 0 \| 1 \| 2 | `1` | 订阅与发布的 QoS |
+| `maxMessageSize` | number | `200000` | 单条消息最大长度（字节） |
+| `fromExtractor` | `"topic"` \| `"payload"` \| `"topic+payload"` | `"topic"` | 如何解析发送方 id |
+| `allowFrom` | (string \| number)[] | `[]` | topic/发送方白名单 |
+| `dmPolicy` | string | - | `pairing`、`allowlist`、`open`、`disabled` |
 
-## Security
+## 安全
 
-- Prefer `mqtts://` and TLS in production.
-- Use `allowFrom` and `dmPolicy` to restrict which topics/senders can trigger the agent.
+- 生产环境建议使用 `mqtts://` 与 TLS。
+- 使用 `allowFrom` 和 `dmPolicy` 限制哪些 topic/发送方能触发 Agent。
 
-## Troubleshooting
+## 故障排除
 
 ### `Error: connack timeout`
 
@@ -379,8 +379,8 @@ The bridge connects to the gateway from localhost, so the gateway treats it as a
 - **地址或端口不对**：确认 `brokerUrl`（`mqtt://` / `mqtts://`、端口 1883/8883）与 broker 实际一致。
 - **鉴权失败或 broker 限制**：检查 `username` / `password`、broker 日志与连接/限流策略。
 
-## References
+## 参考
 
-- Channel implementation scheme: `.wiki/MQTT-Channel-实现方案-v2.md`
-- Gateway Bridge + Android MQTT: `apps/android-mqtt/docs/MQTT-实现方案.md`
-- Channel docs: [docs.clawd.bot/channels/mqtt](https://docs.clawd.bot/channels/mqtt)
+- 通道实现方案：`.wiki/MQTT-Channel-实现方案-v2.md`
+- Gateway Bridge + Android MQTT 方案：`apps/android-mqtt/docs/MQTT-实现方案.md`
+- 通道文档：[docs.clawd.bot/channels/mqtt](https://docs.clawd.bot/channels/mqtt)

@@ -40,9 +40,22 @@ export const MqttAccountSchema = z.object({
 
 export type MqttAccountConfig = z.infer<typeof MqttAccountSchema>;
 
+const GatewayBridgeSchema = z.object({
+  enabled: z.boolean().optional(),
+  gatewayWsUrl: z.string().optional(),
+  brokerUrl: z.string().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  clientId: z.string().optional(),
+  maxMessageSize: z.number().optional(),
+});
+
+export type GatewayBridgeConfig = z.infer<typeof GatewayBridgeSchema>;
+
 export const MqttConfigSchema = z.object({
   enabled: z.boolean().optional(),
   accounts: z.record(z.string(), MqttAccountSchema).optional(),
+  gatewayBridge: GatewayBridgeSchema.optional(),
 });
 
 export type MqttConfig = z.infer<typeof MqttConfigSchema>;
