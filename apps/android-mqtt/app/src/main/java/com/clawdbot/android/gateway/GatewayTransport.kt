@@ -1,12 +1,10 @@
 package com.clawdbot.android.gateway
 
 /**
- * Connection target: WebSocket (endpoint + tls) or MQTT (shared connection).
+ * Connection target: MQTT only (shared connection).
  * Used by [GatewaySession.connect] to choose transport.
  */
 sealed class GatewayConnectionTarget {
-  data class Ws(val endpoint: GatewayEndpoint, val tls: GatewayTlsParams?) : GatewayConnectionTarget()
-
   /**
    * MQTT target using a shared [MqttGatewayConnection].
    * The connection is shared across multiple roles (operator/node), requiring only one device registration.

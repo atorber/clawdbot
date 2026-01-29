@@ -53,7 +53,6 @@ class GatewaySession(
   private val onDisconnected: (message: String) -> Unit,
   private val onEvent: (event: String, payloadJson: String?) -> Unit,
   private val onInvoke: (suspend (InvokeRequest) -> InvokeResult)? = null,
-  private val onTlsFingerprint: ((stableId: String, fingerprint: String) -> Unit)? = null,
 ) {
   data class InvokeRequest(
     val id: String,
@@ -160,7 +159,6 @@ class GatewaySession(
 
   private inner class Connection(
     private val transport: GatewayTransport,
-    private val endpointForCanvas: GatewayEndpoint?,
     private val token: String?,
     private val password: String?,
     private val options: GatewayConnectOptions,
@@ -245,7 +243,7 @@ class GatewaySession(
         deviceAuthStore.saveToken(identity.deviceId, authRole, deviceToken)
       }
       val rawCanvas = obj["canvasHostUrl"].asStringOrNull()
-      canvasHostUrl = normalizeCanvasHostUrl(rawCanvas, endpointForCanvas)
+      canvasHostUrl = normalizeCanvasHostUrl(rawCanvas)
       val sessionDefaults =
         obj["snapshot"].asObjectOrNull()
           ?.get("sessionDefaults").asObjectOrNull()
@@ -382,16 +380,6 @@ class GatewaySession(
       onEvent(event, payloadJson)
     }
 
-    private suspend fun awaitConnectNonce(): String? {
-      val ep = endpointForCanvas ?: return null
-      if (isLoopbackHost(ep.host)) return null
-      return try {
-        withTimeout(2_000) { connectNonceDeferred.await() }
-      } catch (_: Throwable) {
-        null
-      }
-    }
-
     private fun extractConnectNonce(payloadJson: String?): String? {
       if (payloadJson.isNullOrBlank()) return null
       val obj = parseJsonOrNull(payloadJson)?.asObjectOrNull() ?: return null
@@ -499,22 +487,11 @@ class GatewaySession(
   }
 
   private suspend fun connectOnce(desired: DesiredConnection) = withContext(Dispatchers.IO) {
-    val (transport, endpointForCanvas) =
-      when (val t = desired.target) {
-        is GatewayConnectionTarget.Ws ->
-          WsGatewayTransport(
-            scope = scope,
-            endpoint = t.endpoint,
-            tls = t.tls,
-            onTlsFingerprint = onTlsFingerprint,
-          ) to t.endpoint
-        is GatewayConnectionTarget.Mqtt ->
-          t.connection.createTransport(t.role) to null
-      }
+    val t = desired.target as GatewayConnectionTarget.Mqtt
+    val transport = t.connection.createTransport(t.role)
     val conn =
       Connection(
         transport = transport,
-        endpointForCanvas = endpointForCanvas,
         token = desired.token,
         password = desired.password,
         options = desired.options,
@@ -560,27 +537,13 @@ class GatewaySession(
     return parts.joinToString("|")
   }
 
-  private fun normalizeCanvasHostUrl(raw: String?, endpoint: GatewayEndpoint?): String? {
+  private fun normalizeCanvasHostUrl(raw: String?): String? {
     val trimmed = raw?.trim().orEmpty()
-    val parsed = trimmed.takeIf { it.isNotBlank() }?.let { runCatching { java.net.URI(it) }.getOrNull() }
-    val host = parsed?.host?.trim().orEmpty()
-    val port = parsed?.port ?: -1
-    val scheme = parsed?.scheme?.trim().orEmpty().ifBlank { "http" }
-
-    if (trimmed.isNotBlank() && !isLoopbackHost(host)) {
-      return trimmed
-    }
-    if (endpoint == null) return trimmed.ifBlank { null }
-
-    val fallbackHost =
-      endpoint.tailnetDns?.trim().takeIf { !it.isNullOrEmpty() }
-        ?: endpoint.lanHost?.trim().takeIf { !it.isNullOrEmpty() }
-        ?: endpoint.host.trim()
-    if (fallbackHost.isEmpty()) return trimmed.ifBlank { null }
-
-    val fallbackPort = endpoint.canvasPort ?: if (port > 0) port else 18793
-    val formattedHost = if (fallbackHost.contains(":")) "[${fallbackHost}]" else fallbackHost
-    return "$scheme://$formattedHost:$fallbackPort"
+    if (trimmed.isBlank()) return null
+    val parsed = runCatching { java.net.URI(trimmed) }.getOrNull() ?: return trimmed
+    val host = parsed.host?.trim().orEmpty()
+    if (isLoopbackHost(host)) return null
+    return trimmed
   }
 
   private fun isLoopbackHost(raw: String?): Boolean {
