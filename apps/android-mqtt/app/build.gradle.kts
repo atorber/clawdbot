@@ -103,7 +103,6 @@ dependencies {
 
   implementation("androidx.security:security-crypto:1.1.0")
   implementation("androidx.exifinterface:exifinterface:1.4.2")
-  implementation("com.squareup.okhttp3:okhttp:5.3.2")
 
   // CameraX (for node.invoke camera.* parity)
   implementation("androidx.camera:camera-core:1.5.2")
@@ -111,9 +110,6 @@ dependencies {
   implementation("androidx.camera:camera-lifecycle:1.5.2")
   implementation("androidx.camera:camera-video:1.5.2")
   implementation("androidx.camera:camera-view:1.5.2")
-
-  // Unicast DNS-SD (Wide-Area Bonjour) for tailnet discovery domains.
-  implementation("dnsjava:dnsjava:3.6.4")
 
   // MQTT (Paho) for gateway-over-MQTT transport. 使用 MqttAsyncClient，不依赖 Android Service。
   implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")

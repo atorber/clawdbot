@@ -1,6 +1,6 @@
 ## Clawdbot Node (Android MQTT)（内部）
 
-通过 **MQTT** 连接网关的 Android 节点应用（可选 WebSocket 回退）。提供 **Canvas + 聊天 + 相机**。需在 MQTT 扩展中启用 **Gateway Bridge**，由 Broker 桥接到网关 WebSocket。
+仅通过 **MQTT** 连接网关的 Android 节点应用。提供 **Canvas + 聊天 + 相机**。需在 MQTT 扩展中启用 **Gateway Bridge**，由 Broker 桥接到网关 WebSocket。
 
 说明：
 - 节点通过**前台服务**保持连接（常驻通知栏，带「断开」操作）。
@@ -27,8 +27,8 @@ cd apps/android-mqtt
 1) 启动网关并启用带 **Gateway Bridge** 的 MQTT 扩展（见 `extensions/mqtt/README.md`）。确保 Bridge 已连上你的 MQTT Broker 与网关 WebSocket。
 
 2) 在 Android 应用中：
-- 打开 **设置**
-- 配置 **MQTT Broker**（地址、端口、可选认证）。也可使用 **手动网关** 以 WebSocket（主机 + 端口）代替 MQTT。
+- 打开 **设置** → **高级**（MQTT 配置）
+- 配置 **MQTT Broker**（Broker 地址、可选用户名/密码/客户端 ID），点击 **连接**。
 
 3) 在网关机器上批准配对：
 ```bash
@@ -71,16 +71,13 @@ adb logcat -s MoltbotGateway:* MoltbotWebView:E
 
 ### 4. 配置核对
 
-- **Android 应用**：设置页里「连接模式」选 MQTT 后，Broker URL、用户名、密码、Client ID 是否与 Broker 及 Bridge 端一致。
+- **Android 应用**：设置页「高级」中 Broker 地址、用户名、密码、Client ID 是否与 Broker 及 Bridge 端一致。
 - **Gateway 配置**（如 `~/.clawdbot/config.json` 或环境对应配置）：`channels.mqtt.gatewayBridge` 中 `enabled: true`，`brokerUrl`、`username`、`password`、`gatewayWsUrl`（默认 `ws://127.0.0.1:18789`）是否正确。
 
 按 1→2→3→4 排查后，多数「MQTT 连接失败」可定位到是 Android 连 Broker、Bridge 连 Broker、Bridge 连 Gateway 或配置不一致中的某一环。
 
 ## 权限
 
-- 发现（使用 WebSocket / 手动网关时）：
-  - Android 13+（`API 33+`）：`NEARBY_WIFI_DEVICES`
-  - Android 12 及以下：`ACCESS_FINE_LOCATION`（NSD 扫描所需）
 - 前台服务通知（Android 13+）：`POST_NOTIFICATIONS`
 - 相机：
   - `CAMERA`：用于 `camera.snap` 与 `camera.clip`
