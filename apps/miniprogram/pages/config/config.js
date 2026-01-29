@@ -16,6 +16,15 @@ function brokerHostLabel(url) {
   }
 }
 
+function generateDefaultClientId() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let s = 'mp-';
+  for (let i = 0; i < 8; i++) {
+    s += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return s;
+}
+
 const TEST_TIMEOUT_MS = 15000;
 const VERSION = '0.1.0';
 
@@ -43,11 +52,13 @@ Page({
     const draft = storage.loadConfigDraft();
     const lastBroker = storage.getLastConnectedBroker();
     const source = config && config.brokerUrl ? config : (draft || {});
+    const rawClientId = (source.clientId && String(source.clientId).trim()) || '';
+    const clientId = rawClientId || generateDefaultClientId();
     this.setData({
       brokerUrl: (source.brokerUrl && source.brokerUrl.trim()) || DEFAULT_BROKER_URL,
       username: source.username != null && source.username !== '' ? source.username : DEFAULT_USERNAME,
       password: source.password != null ? source.password : DEFAULT_PASSWORD,
-      clientId: (source.clientId && source.clientId.trim()) || '',
+      clientId,
       topicIn: (source.topicIn && source.topicIn.trim()) || 'devices/+/in',
       topicOut: (source.topicOut && source.topicOut.trim()) || 'devices/+/out',
       lastConnectedBroker: lastBroker ? brokerHostLabel(lastBroker) : '',
@@ -124,6 +135,37 @@ Page({
     wx.setClipboardData({
       data: 'https://github.com/moltbot/moltbot/tree/main/extensions/mqtt',
       success: () => wx.showToast({ title: '链接已复制', icon: 'none' }),
+    });
+  },
+
+  copyConfig() {
+    const { brokerUrl, username, password, topicIn, topicOut } = this.data;
+    const subscribe = (topicIn && topicIn.trim()) ? [topicIn.trim()] : ['devices/+/in'];
+    const publishPrefix = (topicOut && topicOut.trim()) ? topicOut.trim().replace(/\+/g, '{to}') : 'devices/{to}/out';
+    const account = {
+      enabled: true,
+      brokerUrl: (brokerUrl && brokerUrl.trim()) || 'mqtts://broker.example.com:8883',
+      username: (username != null && String(username).trim()) ? String(username).trim() : '',
+      password: (password != null && String(password)) ? String(password) : '',
+      topics: {
+        subscribe,
+        publishPrefix,
+        publishMode: 'prefix',
+      },
+    };
+    const config = {
+      channels: {
+        mqtt: {
+          enabled: true,
+          accounts: { default: account },
+        },
+      },
+    };
+    const text = JSON.stringify(config, null, 2);
+    wx.setClipboardData({
+      data: text,
+      success: () => wx.showToast({ title: '配置已复制到剪贴板', icon: 'success' }),
+      fail: () => wx.showToast({ title: '复制失败', icon: 'none' }),
     });
   },
 

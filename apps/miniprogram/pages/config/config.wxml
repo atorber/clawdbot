@@ -36,5 +36,6 @@
   <view class="card actions">
     <button class="btn-primary" bindtap="saveAndBack">保存并返回</button>
     <button class="btn-secondary {{testing ? 'btn-disabled' : ''}}" bindtap="testConnect" disabled="{{testing}}">连接测试</button>
+    <button class="btn-secondary" bindtap="copyConfig">复制配置</button>
   </view>
 </view>
