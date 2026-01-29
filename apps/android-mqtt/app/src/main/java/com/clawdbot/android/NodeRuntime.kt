@@ -16,13 +16,10 @@ import com.clawdbot.android.gateway.DeviceAuthStore
 import com.clawdbot.android.gateway.DeviceIdentityStore
 import com.clawdbot.android.gateway.GatewayClientInfo
 import com.clawdbot.android.gateway.GatewayConnectOptions
-import com.clawdbot.android.gateway.GatewayDiscovery
 import com.clawdbot.android.gateway.GatewayConnectionTarget
-import com.clawdbot.android.gateway.GatewayEndpoint
 import com.clawdbot.android.gateway.GatewaySession
 import com.clawdbot.android.gateway.MqttConnectionState
 import com.clawdbot.android.gateway.MqttGatewayConnection
-import com.clawdbot.android.gateway.GatewayTlsParams
 import com.clawdbot.android.node.CameraCaptureManager
 import com.clawdbot.android.node.LocationCaptureManager
 import com.clawdbot.android.BuildConfig
@@ -110,10 +107,6 @@ class NodeRuntime(context: Context) {
   val talkIsSpeaking: StateFlow<Boolean>
     get() = talkMode.isSpeaking
 
-  private val discovery = GatewayDiscovery(appContext, scope = scope)
-  val gateways: StateFlow<List<GatewayEndpoint>> = discovery.gateways
-  val discoveryStatusText: StateFlow<String> = discovery.statusText
-
   private val identityStore = DeviceIdentityStore(appContext)
 
   private val _isConnected = MutableStateFlow(false)
@@ -152,7 +145,6 @@ class NodeRuntime(context: Context) {
   private var nodeConnected = false
   private var operatorStatusText: String = "Offline"
   private var nodeStatusText: String = "Offline"
-  private var connectedEndpoint: GatewayEndpoint? = null
   private var sharedMqttConnection: MqttGatewayConnection? = null
 
   private val _mqttConnectionState = MutableStateFlow<MqttConnectionState>(MqttConnectionState.Disconnected)
@@ -214,9 +206,6 @@ class NodeRuntime(context: Context) {
       onEvent = { _, _ -> },
       onInvoke = { req ->
         handleInvoke(req.command, req.paramsJson)
-      },
-      onTlsFingerprint = { stableId, fingerprint ->
-        prefs.saveGatewayTlsFingerprint(stableId, fingerprint)
       },
     )
 
@@ -287,16 +276,10 @@ class NodeRuntime(context: Context) {
   val wakeWords: StateFlow<List<String>> = prefs.wakeWords
   val voiceWakeMode: StateFlow<VoiceWakeMode> = prefs.voiceWakeMode
   val talkEnabled: StateFlow<Boolean> = prefs.talkEnabled
-  val manualEnabled: StateFlow<Boolean> = prefs.manualEnabled
-  val manualHost: StateFlow<String> = prefs.manualHost
-  val manualPort: StateFlow<Int> = prefs.manualPort
-  val manualTls: StateFlow<Boolean> = prefs.manualTls
-  val connectionMode: StateFlow<String> = prefs.connectionMode
   val mqttBrokerUrl: StateFlow<String> = prefs.mqttBrokerUrl
   val mqttUsername: StateFlow<String> = prefs.mqttUsername
   val mqttPassword: StateFlow<String> = prefs.mqttPassword
   val mqttClientId: StateFlow<String> = prefs.mqttClientId
-  val lastDiscoveredStableId: StateFlow<String> = prefs.lastDiscoveredStableId
   val canvasDebugStatusEnabled: StateFlow<Boolean> = prefs.canvasDebugStatusEnabled
 
   private var didAutoConnect = false
@@ -356,38 +339,12 @@ class NodeRuntime(context: Context) {
     }
 
     scope.launch(Dispatchers.Default) {
-      gateways.collect { list ->
-        if (list.isNotEmpty()) {
-          // Persist the last discovered gateway (best-effort UX parity with iOS).
-          prefs.setLastDiscoveredStableId(list.last().stableId)
-        }
-
+      mqttBrokerUrl.collect { brokerUrl ->
         if (didAutoConnect) return@collect
         if (_isConnected.value) return@collect
-
-        if (connectionMode.value == "mqtt") {
-          val brokerUrl = mqttBrokerUrl.value.trim()
-          if (brokerUrl.isNotEmpty()) {
-            didAutoConnect = true
-            connect(null)
-          }
-          return@collect
-        }
-        if (manualEnabled.value) {
-          val host = manualHost.value.trim()
-          val port = manualPort.value
-          if (host.isNotEmpty() && port in 1..65535) {
-            didAutoConnect = true
-            connect(GatewayEndpoint.manual(host = host, port = port))
-          }
-          return@collect
-        }
-
-        val targetStableId = lastDiscoveredStableId.value.trim()
-        if (targetStableId.isEmpty()) return@collect
-        val target = list.firstOrNull { it.stableId == targetStableId } ?: return@collect
+        if (brokerUrl.trim().isEmpty()) return@collect
         didAutoConnect = true
-        connect(target)
+        connect()
       }
     }
 
@@ -430,26 +387,6 @@ class NodeRuntime(context: Context) {
 
   fun setPreventSleep(value: Boolean) {
     prefs.setPreventSleep(value)
-  }
-
-  fun setManualEnabled(value: Boolean) {
-    prefs.setManualEnabled(value)
-  }
-
-  fun setManualHost(value: String) {
-    prefs.setManualHost(value)
-  }
-
-  fun setManualPort(value: Int) {
-    prefs.setManualPort(value)
-  }
-
-  fun setManualTls(value: Boolean) {
-    prefs.setManualTls(value)
-  }
-
-  fun setConnectionMode(mode: String) {
-    prefs.setConnectionMode(mode)
   }
 
   fun setMqttBrokerUrl(value: String) {
@@ -587,54 +524,36 @@ class NodeRuntime(context: Context) {
   }
 
   fun refreshGatewayConnection() {
-    if (connectionMode.value == "mqtt") {
-      connect(null)
-    } else {
-      val ep = connectedEndpoint ?: return
-      connect(ep)
-    }
+    connect()
     operatorSession.reconnect()
     nodeSession.reconnect()
   }
 
-  fun connect(endpoint: GatewayEndpoint?) {
+  fun connect() {
     operatorStatusText = "Connecting…"
     nodeStatusText = "Connecting…"
     updateStatus()
-    val token = prefs.loadGatewayToken()
-    val password = prefs.loadGatewayPassword()
-
-    if (connectionMode.value == "mqtt" && endpoint == null) {
-      val brokerUrl = mqttBrokerUrl.value.trim()
-      if (brokerUrl.isEmpty()) {
-        _statusText.value = "Failed: MQTT broker URL required"
-        return
-      }
-      connectedEndpoint = null
-      val clientId = mqttClientId.value.ifBlank { instanceId.value }
-      // Use shared MQTT connection for both operator and node (single device registration)
-      val mqttConn = MqttGatewayConnection(
-        scope = scope,
-        brokerUrl = brokerUrl,
-        clientId = clientId,
-        username = mqttUsername.value.ifBlank { null },
-        password = mqttPassword.value.ifBlank { null },
-        onStateChange = { _mqttConnectionState.value = it },
-      )
-      sharedMqttConnection = mqttConn
-      val targetOp = GatewayConnectionTarget.Mqtt(connection = mqttConn, role = "operator")
-      val targetNode = GatewayConnectionTarget.Mqtt(connection = mqttConn, role = "node")
-      operatorSession.connect(targetOp, token, password, buildOperatorConnectOptions())
-      nodeSession.connect(targetNode, token, password, buildNodeConnectOptions())
+    val brokerUrl = mqttBrokerUrl.value.trim()
+    if (brokerUrl.isEmpty()) {
+      _statusText.value = "Failed: MQTT broker URL required"
       return
     }
-
-    if (endpoint == null) return
-    connectedEndpoint = endpoint
-    val tls = resolveTlsParams(endpoint)
-    val target = GatewayConnectionTarget.Ws(endpoint, tls)
-    operatorSession.connect(target, token, password, buildOperatorConnectOptions())
-    nodeSession.connect(target, token, password, buildNodeConnectOptions())
+    val token = prefs.loadGatewayToken()
+    val password = prefs.loadGatewayPassword()
+    val clientId = mqttClientId.value.ifBlank { instanceId.value }
+    val mqttConn = MqttGatewayConnection(
+      scope = scope,
+      brokerUrl = brokerUrl,
+      clientId = clientId,
+      username = mqttUsername.value.ifBlank { null },
+      password = mqttPassword.value.ifBlank { null },
+      onStateChange = { _mqttConnectionState.value = it },
+    )
+    sharedMqttConnection = mqttConn
+    val targetOp = GatewayConnectionTarget.Mqtt(connection = mqttConn, role = "operator")
+    val targetNode = GatewayConnectionTarget.Mqtt(connection = mqttConn, role = "node")
+    operatorSession.connect(targetOp, token, password, buildOperatorConnectOptions())
+    nodeSession.connect(targetNode, token, password, buildNodeConnectOptions())
   }
 
   private fun hasRecordAudioPermission(): Boolean {
@@ -666,66 +585,19 @@ class NodeRuntime(context: Context) {
   }
 
   fun connectManual() {
-    if (connectionMode.value == "mqtt") {
-      val brokerUrl = mqttBrokerUrl.value.trim()
-      if (brokerUrl.isEmpty()) {
-        _statusText.value = "Failed: MQTT broker URL required"
-        return
-      }
-      connect(null)
+    val brokerUrl = mqttBrokerUrl.value.trim()
+    if (brokerUrl.isEmpty()) {
+      _statusText.value = "Failed: MQTT broker URL required"
       return
     }
-    val host = manualHost.value.trim()
-    val port = manualPort.value
-    if (host.isEmpty() || port <= 0 || port > 65535) {
-      _statusText.value = "Failed: invalid manual host/port"
-      return
-    }
-    connect(GatewayEndpoint.manual(host = host, port = port))
+    connect()
   }
 
   fun disconnect() {
-    connectedEndpoint = null
     sharedMqttConnection = null
     _mqttConnectionState.value = MqttConnectionState.Disconnected
     operatorSession.disconnect()
     nodeSession.disconnect()
-  }
-
-  private fun resolveTlsParams(endpoint: GatewayEndpoint): GatewayTlsParams? {
-    val stored = prefs.loadGatewayTlsFingerprint(endpoint.stableId)
-    val hinted = endpoint.tlsEnabled || !endpoint.tlsFingerprintSha256.isNullOrBlank()
-    val manual = endpoint.stableId.startsWith("manual|")
-
-    if (manual) {
-      if (!manualTls.value) return null
-      return GatewayTlsParams(
-        required = true,
-        expectedFingerprint = endpoint.tlsFingerprintSha256 ?: stored,
-        allowTOFU = stored == null,
-        stableId = endpoint.stableId,
-      )
-    }
-
-    if (hinted) {
-      return GatewayTlsParams(
-        required = true,
-        expectedFingerprint = endpoint.tlsFingerprintSha256 ?: stored,
-        allowTOFU = stored == null,
-        stableId = endpoint.stableId,
-      )
-    }
-
-    if (!stored.isNullOrBlank()) {
-      return GatewayTlsParams(
-        required = true,
-        expectedFingerprint = stored,
-        allowTOFU = false,
-        stableId = endpoint.stableId,
-      )
-    }
-
-    return null
   }
 
   fun handleCanvasA2UIActionFromWebView(payloadJson: String) {

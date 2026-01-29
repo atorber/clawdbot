@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -51,7 +50,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -80,11 +78,6 @@ fun SettingsSheet(viewModel: MainViewModel) {
   val voiceWakeMode by viewModel.voiceWakeMode.collectAsState()
   val voiceWakeStatusText by viewModel.voiceWakeStatusText.collectAsState()
   val isConnected by viewModel.isConnected.collectAsState()
-  val manualEnabled by viewModel.manualEnabled.collectAsState()
-  val manualHost by viewModel.manualHost.collectAsState()
-  val manualPort by viewModel.manualPort.collectAsState()
-  val manualTls by viewModel.manualTls.collectAsState()
-  val connectionMode by viewModel.connectionMode.collectAsState()
   val mqttConnectionState by viewModel.mqttConnectionState.collectAsState()
   val mqttBrokerUrl by viewModel.mqttBrokerUrl.collectAsState()
   val mqttUsername by viewModel.mqttUsername.collectAsState()
@@ -94,8 +87,6 @@ fun SettingsSheet(viewModel: MainViewModel) {
   val statusText by viewModel.statusText.collectAsState()
   val serverName by viewModel.serverName.collectAsState()
   val remoteAddress by viewModel.remoteAddress.collectAsState()
-  val gateways by viewModel.gateways.collectAsState()
-  val discoveryStatusText by viewModel.discoveryStatusText.collectAsState()
 
   val listState = rememberLazyListState()
   val (wakeWordsText, setWakeWordsText) = remember { mutableStateOf("") }
@@ -247,22 +238,6 @@ fun SettingsSheet(viewModel: MainViewModel) {
     }
   }
 
-  val visibleGateways =
-    if (isConnected && remoteAddress != null) {
-      gateways.filterNot { "${it.host}:${it.port}" == remoteAddress }
-    } else {
-      gateways
-    }
-
-  val gatewayDiscoveryFooterText =
-    if (visibleGateways.isEmpty()) {
-      discoveryStatusText
-    } else if (isConnected) {
-      "发现已开启 · 另有 ${visibleGateways.size} 个网关"
-    } else {
-      "发现已开启 · 共 ${visibleGateways.size} 个网关"
-    }
-
   LazyColumn(
     state = listState,
     modifier =
@@ -293,27 +268,6 @@ fun SettingsSheet(viewModel: MainViewModel) {
     // Gateway
     item { Text("网关", style = MaterialTheme.typography.titleSmall) }
     item { ListItem(headlineContent = { Text("状态") }, supportingContent = { Text(statusText) }) }
-    item {
-      Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-        Text("连接模式", style = MaterialTheme.typography.labelMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(
-              selected = connectionMode == "ws",
-              onClick = { viewModel.setConnectionMode("ws") },
-            )
-            Text("WebSocket（发现）", modifier = Modifier.clickable { viewModel.setConnectionMode("ws") })
-          }
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(
-              selected = connectionMode == "mqtt",
-              onClick = { viewModel.setConnectionMode("mqtt") },
-            )
-            Text("MQTT", modifier = Modifier.clickable { viewModel.setConnectionMode("mqtt") })
-          }
-        }
-      }
-    }
     if (serverName != null) {
       item { ListItem(headlineContent = { Text("服务器") }, supportingContent = { Text(serverName!!) }) }
     }
@@ -335,67 +289,10 @@ fun SettingsSheet(viewModel: MainViewModel) {
 
     item { HorizontalDivider() }
 
-    if (!isConnected || visibleGateways.isNotEmpty()) {
-      item {
-        Text(
-          if (isConnected) "其他网关" else "已发现网关",
-          style = MaterialTheme.typography.titleSmall,
-        )
-      }
-      if (!isConnected && visibleGateways.isEmpty()) {
-        item { Text("暂未发现网关。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-      } else {
-        items(items = visibleGateways, key = { it.stableId }) { gateway ->
-          val detailLines =
-            buildList {
-              add("IP: ${gateway.host}:${gateway.port}")
-              gateway.lanHost?.let { add("LAN: $it") }
-              gateway.tailnetDns?.let { add("Tailnet: $it") }
-              if (gateway.gatewayPort != null || gateway.canvasPort != null) {
-                val gw = (gateway.gatewayPort ?: gateway.port).toString()
-                val canvas = gateway.canvasPort?.toString() ?: "—"
-                add("Ports: gw $gw · canvas $canvas")
-              }
-            }
-          ListItem(
-            headlineContent = { Text(gateway.name) },
-            supportingContent = {
-              Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                detailLines.forEach { line ->
-                  Text(line, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-              }
-            },
-            trailingContent = {
-              Button(
-                onClick = {
-                  NodeForegroundService.start(context)
-                  viewModel.connect(gateway)
-                },
-              ) {
-                Text("连接")
-              }
-            },
-          )
-        }
-      }
-      item {
-        Text(
-          gatewayDiscoveryFooterText,
-          modifier = Modifier.fillMaxWidth(),
-          textAlign = TextAlign.Center,
-          style = MaterialTheme.typography.labelMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-    }
-
-    item { HorizontalDivider() }
-
     item {
       ListItem(
         headlineContent = { Text("高级") },
-        supportingContent = { Text("手动连接网关") },
+        supportingContent = { Text("MQTT 配置") },
         trailingContent = {
           Icon(
             imageVector = if (advancedExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
@@ -411,96 +308,55 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item {
       AnimatedVisibility(visible = advancedExpanded) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-          if (connectionMode == "mqtt") {
-            val mqttStatusText =
-              when (mqttConnectionState) {
-                is MqttConnectionState.Disconnected -> "离线"
-                is MqttConnectionState.Connecting -> "连接中…"
-                is MqttConnectionState.Connected -> "已连接"
-                is MqttConnectionState.Error -> "错误: ${(mqttConnectionState as MqttConnectionState.Error).message}"
-              }
-            ListItem(
-              headlineContent = { Text("MQTT 状态") },
-              supportingContent = { Text(mqttStatusText, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-            )
-            OutlinedTextField(
-              value = mqttBrokerUrl,
-              onValueChange = viewModel::setMqttBrokerUrl,
-              label = { Text("Broker 地址") },
-              modifier = Modifier.fillMaxWidth(),
-              singleLine = true,
-              placeholder = { Text("tcp://主机:1883 或 ssl://主机:8883") },
-            )
-            OutlinedTextField(
-              value = mqttUsername,
-              onValueChange = viewModel::setMqttUsername,
-              label = { Text("用户名（选填）") },
-              modifier = Modifier.fillMaxWidth(),
-              singleLine = true,
-            )
-            OutlinedTextField(
-              value = mqttPassword,
-              onValueChange = viewModel::setMqttPassword,
-              label = { Text("密码（选填）") },
-              modifier = Modifier.fillMaxWidth(),
-              singleLine = true,
-            )
-            OutlinedTextField(
-              value = mqttClientId,
-              onValueChange = viewModel::setMqttClientId,
-              label = { Text("客户端 ID（选填，默认用实例 ID）") },
-              modifier = Modifier.fillMaxWidth(),
-              singleLine = true,
-            )
-            val brokerOk = mqttBrokerUrl.trim().isNotEmpty()
-            Button(
-              onClick = {
-                NodeForegroundService.start(context)
-                viewModel.connectManual()
-              },
-              enabled = brokerOk,
-            ) {
-              Text("连接 (MQTT)")
+          val mqttStatusText =
+            when (mqttConnectionState) {
+              is MqttConnectionState.Disconnected -> "离线"
+              is MqttConnectionState.Connecting -> "连接中…"
+              is MqttConnectionState.Connected -> "已连接"
+              is MqttConnectionState.Error -> "错误: ${(mqttConnectionState as MqttConnectionState.Error).message}"
             }
-          } else {
-            ListItem(
-              headlineContent = { Text("使用手动网关") },
-              supportingContent = { Text("发现被阻断时使用。") },
-              trailingContent = { Switch(checked = manualEnabled, onCheckedChange = viewModel::setManualEnabled) },
-            )
-
-            OutlinedTextField(
-              value = manualHost,
-              onValueChange = viewModel::setManualHost,
-              label = { Text("主机") },
-              modifier = Modifier.fillMaxWidth(),
-              enabled = manualEnabled,
-            )
-            OutlinedTextField(
-              value = manualPort.toString(),
-              onValueChange = { v -> viewModel.setManualPort(v.toIntOrNull() ?: 0) },
-              label = { Text("端口") },
-              modifier = Modifier.fillMaxWidth(),
-              enabled = manualEnabled,
-            )
-            ListItem(
-              headlineContent = { Text("要求 TLS") },
-              supportingContent = { Text("首次连接时固定网关证书。") },
-              trailingContent = { Switch(checked = manualTls, onCheckedChange = viewModel::setManualTls, enabled = manualEnabled) },
-              modifier = Modifier.alpha(if (manualEnabled) 1f else 0.5f),
-            )
-
-            val hostOk = manualHost.trim().isNotEmpty()
-            val portOk = manualPort in 1..65535
-            Button(
-              onClick = {
-                NodeForegroundService.start(context)
-                viewModel.connectManual()
-              },
-              enabled = manualEnabled && hostOk && portOk,
-            ) {
-              Text("连接（手动）")
-            }
+          ListItem(
+            headlineContent = { Text("MQTT 状态") },
+            supportingContent = { Text(mqttStatusText, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+          )
+          OutlinedTextField(
+            value = mqttBrokerUrl,
+            onValueChange = viewModel::setMqttBrokerUrl,
+            label = { Text("Broker 地址") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = { Text("tcp://主机:1883 或 ssl://主机:8883") },
+          )
+          OutlinedTextField(
+            value = mqttUsername,
+            onValueChange = viewModel::setMqttUsername,
+            label = { Text("用户名（选填）") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+          )
+          OutlinedTextField(
+            value = mqttPassword,
+            onValueChange = viewModel::setMqttPassword,
+            label = { Text("密码（选填）") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+          )
+          OutlinedTextField(
+            value = mqttClientId,
+            onValueChange = viewModel::setMqttClientId,
+            label = { Text("客户端 ID（选填，默认用实例 ID）") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+          )
+          val brokerOk = mqttBrokerUrl.trim().isNotEmpty()
+          Button(
+            onClick = {
+              NodeForegroundService.start(context)
+              viewModel.connectManual()
+            },
+            enabled = brokerOk,
+          ) {
+            Text("连接")
           }
         }
       }

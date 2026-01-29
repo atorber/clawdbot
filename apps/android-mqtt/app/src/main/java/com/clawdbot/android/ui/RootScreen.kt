@@ -89,18 +89,15 @@ fun RootScreen(viewModel: MainViewModel) {
   val talkIsSpeaking by viewModel.talkIsSpeaking.collectAsState()
   val seamColorArgb by viewModel.seamColorArgb.collectAsState()
   val seamColor = remember(seamColorArgb) { ComposeColor(seamColorArgb) }
-  val connectionMode by viewModel.connectionMode.collectAsState()
   val mqttConnectionState by viewModel.mqttConnectionState.collectAsState()
   val mqttStatus =
-    remember(connectionMode, mqttConnectionState) {
-      if (connectionMode != "mqtt") null
-      else
-        when (mqttConnectionState) {
-          is MqttConnectionState.Disconnected -> "MQTT 离线"
-          is MqttConnectionState.Connecting -> "MQTT 连接中"
-          is MqttConnectionState.Connected -> "MQTT 已连接"
-          is MqttConnectionState.Error -> "MQTT 错误: ${(mqttConnectionState as MqttConnectionState.Error).message}"
-        }
+    remember(mqttConnectionState) {
+      when (mqttConnectionState) {
+        is MqttConnectionState.Disconnected -> "MQTT 离线"
+        is MqttConnectionState.Connecting -> "MQTT 连接中"
+        is MqttConnectionState.Connected -> "MQTT 已连接"
+        is MqttConnectionState.Error -> "MQTT 错误: ${(mqttConnectionState as MqttConnectionState.Error).message}"
+      }
     }
   val audioPermissionLauncher =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->

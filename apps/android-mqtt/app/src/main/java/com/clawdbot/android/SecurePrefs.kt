@@ -58,26 +58,6 @@ class SecurePrefs(context: Context) {
   private val _preventSleep = MutableStateFlow(prefs.getBoolean("screen.preventSleep", true))
   val preventSleep: StateFlow<Boolean> = _preventSleep
 
-  private val _manualEnabled =
-    MutableStateFlow(readBoolWithMigration("gateway.manual.enabled", "bridge.manual.enabled", false))
-  val manualEnabled: StateFlow<Boolean> = _manualEnabled
-
-  private val _manualHost =
-    MutableStateFlow(readStringWithMigration("gateway.manual.host", "bridge.manual.host", ""))
-  val manualHost: StateFlow<String> = _manualHost
-
-  private val _manualPort =
-    MutableStateFlow(readIntWithMigration("gateway.manual.port", "bridge.manual.port", 18789))
-  val manualPort: StateFlow<Int> = _manualPort
-
-  private val _manualTls =
-    MutableStateFlow(readBoolWithMigration("gateway.manual.tls", null, true))
-  val manualTls: StateFlow<Boolean> = _manualTls
-
-  private val _connectionMode =
-    MutableStateFlow(prefs.getString("gateway.connectionMode", "ws")?.trim()?.lowercase()?.takeIf { it in listOf("ws", "mqtt") } ?: "ws")
-  val connectionMode: StateFlow<String> = _connectionMode
-
   private val _mqttBrokerUrl = MutableStateFlow(prefs.getString("gateway.mqtt.brokerUrl", "")?.trim().orEmpty())
   val mqttBrokerUrl: StateFlow<String> = _mqttBrokerUrl
 
@@ -89,16 +69,6 @@ class SecurePrefs(context: Context) {
 
   private val _mqttClientId = MutableStateFlow(prefs.getString("gateway.mqtt.clientId", null)?.trim().orEmpty())
   val mqttClientId: StateFlow<String> = _mqttClientId
-
-  private val _lastDiscoveredStableId =
-    MutableStateFlow(
-      readStringWithMigration(
-        "gateway.lastDiscoveredStableID",
-        "bridge.lastDiscoveredStableId",
-        "",
-      ),
-    )
-  val lastDiscoveredStableId: StateFlow<String> = _lastDiscoveredStableId
 
   private val _canvasDebugStatusEnabled =
     MutableStateFlow(prefs.getBoolean("canvas.debugStatusEnabled", false))
@@ -112,12 +82,6 @@ class SecurePrefs(context: Context) {
 
   private val _talkEnabled = MutableStateFlow(prefs.getBoolean("talk.enabled", false))
   val talkEnabled: StateFlow<Boolean> = _talkEnabled
-
-  fun setLastDiscoveredStableId(value: String) {
-    val trimmed = value.trim()
-    prefs.edit { putString("gateway.lastDiscoveredStableID", trimmed) }
-    _lastDiscoveredStableId.value = trimmed
-  }
 
   fun setDisplayName(value: String) {
     val trimmed = value.trim()
@@ -143,33 +107,6 @@ class SecurePrefs(context: Context) {
   fun setPreventSleep(value: Boolean) {
     prefs.edit { putBoolean("screen.preventSleep", value) }
     _preventSleep.value = value
-  }
-
-  fun setManualEnabled(value: Boolean) {
-    prefs.edit { putBoolean("gateway.manual.enabled", value) }
-    _manualEnabled.value = value
-  }
-
-  fun setManualHost(value: String) {
-    val trimmed = value.trim()
-    prefs.edit { putString("gateway.manual.host", trimmed) }
-    _manualHost.value = trimmed
-  }
-
-  fun setManualPort(value: Int) {
-    prefs.edit { putInt("gateway.manual.port", value) }
-    _manualPort.value = value
-  }
-
-  fun setManualTls(value: Boolean) {
-    prefs.edit { putBoolean("gateway.manual.tls", value) }
-    _manualTls.value = value
-  }
-
-  fun setConnectionMode(mode: String) {
-    val v = mode.trim().lowercase().takeIf { it in listOf("ws", "mqtt") } ?: "ws"
-    prefs.edit { putString("gateway.connectionMode", v) }
-    _connectionMode.value = v
   }
 
   fun setMqttBrokerUrl(value: String) {
@@ -223,16 +160,6 @@ class SecurePrefs(context: Context) {
   fun saveGatewayPassword(password: String) {
     val key = "gateway.password.${_instanceId.value}"
     prefs.edit { putString(key, password.trim()) }
-  }
-
-  fun loadGatewayTlsFingerprint(stableId: String): String? {
-    val key = "gateway.tls.$stableId"
-    return prefs.getString(key, null)?.trim()?.takeIf { it.isNotEmpty() }
-  }
-
-  fun saveGatewayTlsFingerprint(stableId: String, fingerprint: String) {
-    val key = "gateway.tls.$stableId"
-    prefs.edit { putString(key, fingerprint.trim()) }
   }
 
   fun getString(key: String): String? {
@@ -316,39 +243,4 @@ class SecurePrefs(context: Context) {
     }
   }
 
-  private fun readBoolWithMigration(newKey: String, oldKey: String?, defaultValue: Boolean): Boolean {
-    if (prefs.contains(newKey)) {
-      return prefs.getBoolean(newKey, defaultValue)
-    }
-    if (oldKey != null && prefs.contains(oldKey)) {
-      val value = prefs.getBoolean(oldKey, defaultValue)
-      prefs.edit { putBoolean(newKey, value) }
-      return value
-    }
-    return defaultValue
-  }
-
-  private fun readStringWithMigration(newKey: String, oldKey: String?, defaultValue: String): String {
-    if (prefs.contains(newKey)) {
-      return prefs.getString(newKey, defaultValue) ?: defaultValue
-    }
-    if (oldKey != null && prefs.contains(oldKey)) {
-      val value = prefs.getString(oldKey, defaultValue) ?: defaultValue
-      prefs.edit { putString(newKey, value) }
-      return value
-    }
-    return defaultValue
-  }
-
-  private fun readIntWithMigration(newKey: String, oldKey: String?, defaultValue: Int): Int {
-    if (prefs.contains(newKey)) {
-      return prefs.getInt(newKey, defaultValue)
-    }
-    if (oldKey != null && prefs.contains(oldKey)) {
-      val value = prefs.getInt(oldKey, defaultValue)
-      prefs.edit { putInt(newKey, value) }
-      return value
-    }
-    return defaultValue
-  }
 }

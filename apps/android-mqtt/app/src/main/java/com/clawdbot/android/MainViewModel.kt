@@ -2,7 +2,6 @@ package com.clawdbot.android
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import com.clawdbot.android.gateway.GatewayEndpoint
 import com.clawdbot.android.gateway.MqttConnectionState
 import com.clawdbot.android.chat.OutgoingAttachment
 import com.clawdbot.android.node.CameraCaptureManager
@@ -18,9 +17,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
   val camera: CameraCaptureManager = runtime.camera
   val screenRecorder: ScreenRecordManager = runtime.screenRecorder
   val sms: SmsManager = runtime.sms
-
-  val gateways: StateFlow<List<GatewayEndpoint>> = runtime.gateways
-  val discoveryStatusText: StateFlow<String> = runtime.discoveryStatusText
 
   val isConnected: StateFlow<Boolean> = runtime.isConnected
   val statusText: StateFlow<String> = runtime.statusText
@@ -48,11 +44,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
   val talkStatusText: StateFlow<String> = runtime.talkStatusText
   val talkIsListening: StateFlow<Boolean> = runtime.talkIsListening
   val talkIsSpeaking: StateFlow<Boolean> = runtime.talkIsSpeaking
-  val manualEnabled: StateFlow<Boolean> = runtime.manualEnabled
-  val manualHost: StateFlow<String> = runtime.manualHost
-  val manualPort: StateFlow<Int> = runtime.manualPort
-  val manualTls: StateFlow<Boolean> = runtime.manualTls
-  val connectionMode: StateFlow<String> = runtime.connectionMode
   val mqttConnectionState: StateFlow<MqttConnectionState> = runtime.mqttConnectionState
   val mqttBrokerUrl: StateFlow<String> = runtime.mqttBrokerUrl
   val mqttUsername: StateFlow<String> = runtime.mqttUsername
@@ -95,26 +86,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     runtime.setPreventSleep(value)
   }
 
-  fun setManualEnabled(value: Boolean) {
-    runtime.setManualEnabled(value)
-  }
-
-  fun setManualHost(value: String) {
-    runtime.setManualHost(value)
-  }
-
-  fun setManualPort(value: Int) {
-    runtime.setManualPort(value)
-  }
-
-  fun setManualTls(value: Boolean) {
-    runtime.setManualTls(value)
-  }
-
-  fun setConnectionMode(mode: String) {
-    runtime.setConnectionMode(mode)
-  }
-
   fun setMqttBrokerUrl(value: String) {
     runtime.setMqttBrokerUrl(value)
   }
@@ -155,8 +126,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     runtime.refreshGatewayConnection()
   }
 
-  fun connect(endpoint: GatewayEndpoint) {
-    runtime.connect(endpoint)
+  fun connect() {
+    runtime.connect()
   }
 
   fun connectManual() {
