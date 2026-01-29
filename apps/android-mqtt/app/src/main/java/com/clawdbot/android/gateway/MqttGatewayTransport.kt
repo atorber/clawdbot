@@ -55,8 +55,10 @@ class MqttGatewayTransport(
     val opts = MqttConnectOptions().apply {
       isCleanSession = true
       keepAliveInterval = 60
-      username?.takeIf { it.isNotBlank() }?.let { userName = it }
-      password?.takeIf { it.isNotBlank() }?.toCharArray()?.let { this.password = it }
+      val u = this@MqttGatewayTransport.username
+      val p = this@MqttGatewayTransport.password
+      if (!u.isNullOrBlank()) userName = u
+      if (!p.isNullOrBlank()) this.password = p.toCharArray()
     }
     val c = MqttAndroidClient(context, brokerUrl, "${clientId}_$role")
     client = c

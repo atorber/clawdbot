@@ -385,7 +385,8 @@ class GatewaySession(
     }
 
     private suspend fun awaitConnectNonce(): String? {
-      if (isLoopbackHost(endpoint.host)) return null
+      val ep = endpointForCanvas ?: return null
+      if (isLoopbackHost(ep.host)) return null
       return try {
         withTimeout(2_000) { connectNonceDeferred.await() }
       } catch (_: Throwable) {
