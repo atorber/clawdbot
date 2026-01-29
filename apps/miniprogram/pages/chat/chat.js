@@ -34,6 +34,8 @@ Page({
     pendingReply: false,
     lastError: '',
     configValid: false,
+    replyTo: null,
+    actionMessageId: null,
   },
   mqttClient: null,
   config: null,
@@ -222,16 +224,65 @@ Page({
     this.setData({ inputText: e.detail.value });
   },
 
+  onLongPressMessage(e) {
+    const id = e.currentTarget.dataset.id;
+    this.setData({ actionMessageId: id });
+  },
+
+  clearMessageActions() {
+    if (this.data.actionMessageId) this.setData({ actionMessageId: null });
+  },
+
+  preventBubble() {},
+
+  copyMessage(e) {
+    const id = e.currentTarget.dataset.id;
+    const msg = this.data.messages.find((m) => m.id === id);
+    if (!msg) return;
+    wx.setClipboardData({
+      data: msg.content,
+      success: () => wx.showToast({ title: '已复制', icon: 'none' }),
+    });
+    this.setData({ actionMessageId: null });
+  },
+
+  quoteMessage(e) {
+    const id = e.currentTarget.dataset.id;
+    const msg = this.data.messages.find((m) => m.id === id);
+    if (!msg) return;
+    const preview = msg.content.length > 40 ? msg.content.slice(0, 40) + '…' : msg.content;
+    this.setData({
+      replyTo: {
+        id: msg.id,
+        content: msg.content,
+        role: msg.role,
+        timeText: msg.timeText,
+        preview,
+      },
+      actionMessageId: null,
+    });
+  },
+
+  cancelReply() {
+    this.setData({ replyTo: null });
+  },
+
   send() {
-    const text = (this.data.inputText || '').trim();
+    let text = (this.data.inputText || '').trim();
     if (!text) return;
+    const replyTo = this.data.replyTo;
+    if (replyTo) {
+      const quoteLine = '> ' + replyTo.content.split(/\r?\n/).join('\n> ');
+      text = quoteLine + '\n\n' + text;
+      this.setData({ replyTo: null });
+    }
     if (!this.data.connected || !this.mqttClient || !this.config) {
       this.setData({ lastError: '请先连接 MQTT' });
       return;
     }
     this.setData({ sending: true, inputText: '' });
     const messageId = 'mp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-    const payload = JSON.stringify({ messageId, text });
+    const payload = JSON.stringify({ messageId, text: text });
     const topicIn = this.config.topicInResolved;
 
     const userMsg = {

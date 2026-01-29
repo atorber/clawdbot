@@ -9,14 +9,18 @@
       <image class="icon-btn" src="/images/icon-settings.svg" mode="aspectFit" bindtap="goConfig" />
     </view>
   </view>
-  <scroll-view class="message-list" scroll-y scroll-into-view="{{scrollToId}}" scroll-with-animation>
+  <scroll-view class="message-list" scroll-y scroll-into-view="{{scrollToId}}" scroll-with-animation bindtap="clearMessageActions">
     <block wx:for="{{messages}}" wx:key="id">
       <view id="msg-{{item.id}}" class="message-item {{item.role}}">
-        <view class="bubble">
+        <view class="bubble" data-id="{{item.id}}" bindlongpress="onLongPressMessage">
           <rich-text wx:if="{{item.contentNodes && item.contentNodes.length > 0}}" nodes="{{item.contentNodes}}" class="bubble-rich" />
           <text wx:else>{{item.content}}</text>
         </view>
         <view class="time">{{item.timeText}}</view>
+        <view wx:if="{{actionMessageId === item.id}}" class="message-actions" catchtap="preventBubble">
+          <text class="message-action" data-id="{{item.id}}" catchtap="copyMessage">复制</text>
+          <text class="message-action" data-id="{{item.id}}" catchtap="quoteMessage">引用回复</text>
+        </view>
       </view>
     </block>
     <view wx:if="{{pendingReply}}" id="msg-pending" class="message-item assistant">
@@ -30,6 +34,11 @@
       <text class="empty-hint-text">输入消息与 Gateway 对话</text>
     </view>
   </scroll-view>
+  <view wx:if="{{replyTo}}" class="quote-bar">
+    <text class="quote-label">引用：</text>
+    <text class="quote-preview">{{replyTo.preview}}</text>
+    <text class="quote-close" bindtap="cancelReply">×</text>
+  </view>
   <view wx:if="{{lastError}}" class="error-bar">
     <text class="error-text">{{lastError}}</text>
     <text class="error-action" bindtap="retryConnect">重试</text>
