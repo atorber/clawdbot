@@ -277,6 +277,8 @@ When **Gateway Bridge** is enabled, the plugin subscribes to MQTT topics where c
 
 Message format is the same as over WebSocket: `{ type: "req", id, method, params }` → `{ type: "res", id, ok, payload?, error? }` and `{ type: "event", event, payload? }`.
 
+**clientId and topic design (why the same clientId cannot be shared):** The broker allows only one connection per clientId; if Bridge and a client used the same connection clientId they would kick each other. So Bridge connection clientId uses reserved prefix `moltbot-bridge-`. The `{clientId}` in the topic path is always the **client’s** identity (who sends req and receives res/evt). Bridge subscribes to `moltbot/gw/+/role/req`, parses clientId from the received topic, and publishes res/evt to `moltbot/gw/{thatClientId}/role/res|evt`. Bridge does not appear as clientId in any topic; clients are isolated by their own clientId. Using the same clientId in topic/connection for Bridge and a client is not feasible and is avoided by the prefix.
+
 ### Bridge configuration
 
 Under `channels.mqtt` add a `gatewayBridge` block:
@@ -288,7 +290,7 @@ Under `channels.mqtt` add a `gatewayBridge` block:
 | `brokerUrl` | string | (optional) | MQTT broker URL for the bridge; if omitted, first MQTT account’s broker is used |
 | `username` | string | - | Broker username (or from first account if not set) |
 | `password` | string | - | Broker password (or from first account if not set) |
-| `clientId` | string | auto | MQTT client id used by the bridge |
+| `clientId` | string | auto | Bridge MQTT client id is always prefixed with `moltbot-bridge-` (so it never equals Android/app clientId; one clientId = one connection). Empty = `moltbot-bridge-` + 12 random chars; if set, effective id = `moltbot-bridge-` + value. For pre-registered brokers use the full id (e.g. `moltbot-bridge-mybridge`). |
 | `maxMessageSize` | number | `262144` (256KB) | Max single message size; larger payloads get `PAYLOAD_TOO_LARGE` |
 
 Example (bridge uses its own broker):

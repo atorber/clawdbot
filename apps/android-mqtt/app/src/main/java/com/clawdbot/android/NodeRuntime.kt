@@ -20,6 +20,8 @@ import com.clawdbot.android.gateway.GatewayDiscovery
 import com.clawdbot.android.gateway.GatewayConnectionTarget
 import com.clawdbot.android.gateway.GatewayEndpoint
 import com.clawdbot.android.gateway.GatewaySession
+import com.clawdbot.android.gateway.MqttConnectionState
+import com.clawdbot.android.gateway.MqttGatewayConnection
 import com.clawdbot.android.gateway.GatewayTlsParams
 import com.clawdbot.android.node.CameraCaptureManager
 import com.clawdbot.android.node.LocationCaptureManager
@@ -151,10 +153,13 @@ class NodeRuntime(context: Context) {
   private var operatorStatusText: String = "Offline"
   private var nodeStatusText: String = "Offline"
   private var connectedEndpoint: GatewayEndpoint? = null
+  private var sharedMqttConnection: MqttGatewayConnection? = null
+
+  private val _mqttConnectionState = MutableStateFlow<MqttConnectionState>(MqttConnectionState.Disconnected)
+  val mqttConnectionState: StateFlow<MqttConnectionState> = _mqttConnectionState.asStateFlow()
 
   private val operatorSession =
     GatewaySession(
-      context = appContext,
       scope = scope,
       identityStore = identityStore,
       deviceAuthStore = deviceAuthStore,
@@ -191,7 +196,6 @@ class NodeRuntime(context: Context) {
 
   private val nodeSession =
     GatewaySession(
-      context = appContext,
       scope = scope,
       identityStore = identityStore,
       deviceAuthStore = deviceAuthStore,
@@ -608,22 +612,18 @@ class NodeRuntime(context: Context) {
       }
       connectedEndpoint = null
       val clientId = mqttClientId.value.ifBlank { instanceId.value }
-      val targetOp =
-        GatewayConnectionTarget.Mqtt(
-          brokerUrl = brokerUrl,
-          clientId = clientId,
-          role = "operator",
-          username = mqttUsername.value.ifBlank { null },
-          password = mqttPassword.value.ifBlank { null },
-        )
-      val targetNode =
-        GatewayConnectionTarget.Mqtt(
-          brokerUrl = brokerUrl,
-          clientId = clientId,
-          role = "node",
-          username = mqttUsername.value.ifBlank { null },
-          password = mqttPassword.value.ifBlank { null },
-        )
+      // Use shared MQTT connection for both operator and node (single device registration)
+      val mqttConn = MqttGatewayConnection(
+        scope = scope,
+        brokerUrl = brokerUrl,
+        clientId = clientId,
+        username = mqttUsername.value.ifBlank { null },
+        password = mqttPassword.value.ifBlank { null },
+        onStateChange = { _mqttConnectionState.value = it },
+      )
+      sharedMqttConnection = mqttConn
+      val targetOp = GatewayConnectionTarget.Mqtt(connection = mqttConn, role = "operator")
+      val targetNode = GatewayConnectionTarget.Mqtt(connection = mqttConn, role = "node")
       operatorSession.connect(targetOp, token, password, buildOperatorConnectOptions())
       nodeSession.connect(targetNode, token, password, buildNodeConnectOptions())
       return
@@ -686,6 +686,8 @@ class NodeRuntime(context: Context) {
 
   fun disconnect() {
     connectedEndpoint = null
+    sharedMqttConnection = null
+    _mqttConnectionState.value = MqttConnectionState.Disconnected
     operatorSession.disconnect()
     nodeSession.disconnect()
   }

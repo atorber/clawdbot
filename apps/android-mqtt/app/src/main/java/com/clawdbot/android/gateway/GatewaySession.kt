@@ -1,6 +1,5 @@
 package com.clawdbot.android.gateway
 
-import android.content.Context
 import android.util.Log
 import java.util.Locale
 import java.util.UUID
@@ -47,7 +46,6 @@ data class GatewayConnectOptions(
 )
 
 class GatewaySession(
-  private val context: Context,
   private val scope: CoroutineScope,
   private val identityStore: DeviceIdentityStore,
   private val deviceAuthStore: DeviceAuthStore,
@@ -511,15 +509,7 @@ class GatewaySession(
             onTlsFingerprint = onTlsFingerprint,
           ) to t.endpoint
         is GatewayConnectionTarget.Mqtt ->
-          MqttGatewayTransport(
-            context = context,
-            scope = scope,
-            brokerUrl = t.brokerUrl,
-            clientId = t.clientId,
-            role = t.role,
-            username = t.username,
-            password = t.password,
-          ) to null
+          t.connection.createTransport(t.role) to null
       }
     val conn =
       Connection(

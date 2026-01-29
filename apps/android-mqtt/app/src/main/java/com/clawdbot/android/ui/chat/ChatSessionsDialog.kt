@@ -35,16 +35,16 @@ fun ChatSessionsDialog(
     confirmButton = {},
     title = {
       Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text("Sessions", style = MaterialTheme.typography.titleMedium)
+        Text("会话", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.weight(1f))
         FilledTonalIconButton(onClick = onRefresh) {
-          Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+          Icon(Icons.Default.Refresh, contentDescription = "刷新")
         }
       }
     },
     text = {
       if (sessions.isEmpty()) {
-        Text("No sessions", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("暂无会话", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
       } else {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
           items(sessions, key = { it.key }) { entry ->
@@ -85,7 +85,7 @@ private fun SessionRow(
       Text(entry.displayName ?: entry.key, style = MaterialTheme.typography.bodyMedium)
       Spacer(modifier = Modifier.weight(1f))
       if (isCurrent) {
-        Text("Current", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("当前", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
   }

@@ -115,9 +115,8 @@ dependencies {
   // Unicast DNS-SD (Wide-Area Bonjour) for tailnet discovery domains.
   implementation("dnsjava:dnsjava:3.6.4")
 
-  // MQTT (Paho) for gateway-over-MQTT transport.
+  // MQTT (Paho) for gateway-over-MQTT transport. 使用 MqttAsyncClient，不依赖 Android Service。
   implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
-  implementation("org.eclipse.paho:org.eclipse.paho.android.service:1.1.1")
 
   testImplementation("junit:junit:4.13.2")
   testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")

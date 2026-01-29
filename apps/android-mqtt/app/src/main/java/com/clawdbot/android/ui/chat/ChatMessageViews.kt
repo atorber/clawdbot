@@ -98,7 +98,7 @@ fun ChatTypingIndicatorBubble() {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         DotPulse()
-        Text("Thinking…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("思考中…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
   }
@@ -117,7 +117,7 @@ fun ChatPendingToolsBubble(toolCalls: List<ChatPendingToolCall>) {
       color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
       Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Running tools…", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
+        Text("运行工具中…", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
         for (display in displays.take(6)) {
           Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
@@ -212,7 +212,7 @@ private fun ChatBase64Image(base64: String, mimeType: String?) {
       modifier = Modifier.fillMaxWidth(),
     )
   } else if (failed) {
-    Text("Unsupported attachment", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text("不支持的附件", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
   }
 }
 

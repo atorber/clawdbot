@@ -67,6 +67,7 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import com.clawdbot.android.CameraHudKind
 import com.clawdbot.android.MainViewModel
+import com.clawdbot.android.gateway.MqttConnectionState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,6 +89,19 @@ fun RootScreen(viewModel: MainViewModel) {
   val talkIsSpeaking by viewModel.talkIsSpeaking.collectAsState()
   val seamColorArgb by viewModel.seamColorArgb.collectAsState()
   val seamColor = remember(seamColorArgb) { ComposeColor(seamColorArgb) }
+  val connectionMode by viewModel.connectionMode.collectAsState()
+  val mqttConnectionState by viewModel.mqttConnectionState.collectAsState()
+  val mqttStatus =
+    remember(connectionMode, mqttConnectionState) {
+      if (connectionMode != "mqtt") null
+      else
+        when (mqttConnectionState) {
+          is MqttConnectionState.Disconnected -> "MQTT 离线"
+          is MqttConnectionState.Connecting -> "MQTT 连接中"
+          is MqttConnectionState.Connected -> "MQTT 已连接"
+          is MqttConnectionState.Error -> "MQTT 错误: ${(mqttConnectionState as MqttConnectionState.Error).message}"
+        }
+    }
   val audioPermissionLauncher =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
       if (granted) viewModel.setTalkEnabled(true)
@@ -97,34 +111,34 @@ fun RootScreen(viewModel: MainViewModel) {
       // Status pill owns transient activity state so it doesn't overlap the connection indicator.
       if (!isForeground) {
         return@remember StatusActivity(
-          title = "Foreground required",
+          title = "需在前台",
           icon = Icons.Default.Report,
-          contentDescription = "Foreground required",
+          contentDescription = "需在前台",
         )
       }
 
       val lowerStatus = statusText.lowercase()
       if (lowerStatus.contains("repair")) {
         return@remember StatusActivity(
-          title = "Repairing…",
+          title = "修复中…",
           icon = Icons.Default.Refresh,
-          contentDescription = "Repairing",
+          contentDescription = "修复中",
         )
       }
       if (lowerStatus.contains("pairing") || lowerStatus.contains("approval")) {
         return@remember StatusActivity(
-          title = "Approval pending",
+          title = "等待批准",
           icon = Icons.Default.RecordVoiceOver,
-          contentDescription = "Approval pending",
+          contentDescription = "等待批准",
         )
       }
       // Avoid duplicating the primary gateway status ("Connecting…") in the activity slot.
 
       if (screenRecordActive) {
         return@remember StatusActivity(
-          title = "Recording screen…",
+          title = "正在录屏…",
           icon = Icons.AutoMirrored.Filled.ScreenShare,
-          contentDescription = "Recording screen",
+          contentDescription = "正在录屏",
           tint = androidx.compose.ui.graphics.Color.Red,
         )
       }
@@ -135,26 +149,26 @@ fun RootScreen(viewModel: MainViewModel) {
             StatusActivity(
               title = hud.message,
               icon = Icons.Default.PhotoCamera,
-              contentDescription = "Taking photo",
+              contentDescription = "拍照",
             )
           CameraHudKind.Recording ->
             StatusActivity(
               title = hud.message,
               icon = Icons.Default.FiberManualRecord,
-              contentDescription = "Recording",
+              contentDescription = "录制",
               tint = androidx.compose.ui.graphics.Color.Red,
             )
           CameraHudKind.Success ->
             StatusActivity(
               title = hud.message,
               icon = Icons.Default.CheckCircle,
-              contentDescription = "Capture finished",
+              contentDescription = "采集完成",
             )
           CameraHudKind.Error ->
             StatusActivity(
               title = hud.message,
               icon = Icons.Default.Error,
-              contentDescription = "Capture failed",
+              contentDescription = "采集失败",
               tint = androidx.compose.ui.graphics.Color.Red,
             )
         }
@@ -162,17 +176,17 @@ fun RootScreen(viewModel: MainViewModel) {
 
       if (voiceWakeStatusText.contains("Microphone permission", ignoreCase = true)) {
         return@remember StatusActivity(
-          title = "Mic permission",
+          title = "麦克风权限",
           icon = Icons.Default.Error,
-          contentDescription = "Mic permission required",
+          contentDescription = "需要麦克风权限",
         )
       }
       if (voiceWakeStatusText == "Paused") {
-        val suffix = if (!isForeground) " (background)" else ""
+        val suffix = if (!isForeground) "（后台）" else ""
         return@remember StatusActivity(
-          title = "Voice Wake paused$suffix",
+          title = "语音唤醒已暂停$suffix",
           icon = Icons.Default.RecordVoiceOver,
-          contentDescription = "Voice Wake paused",
+          contentDescription = "语音唤醒已暂停",
         )
       }
 
@@ -209,6 +223,7 @@ fun RootScreen(viewModel: MainViewModel) {
       gateway = gatewayState,
       voiceEnabled = voiceEnabled,
       activity = activity,
+      mqttStatus = mqttStatus,
       onClick = { sheet = Sheet.Settings },
       modifier = Modifier.windowInsetsPadding(safeOverlayInsets).padding(start = 12.dp, top = 12.dp),
     )
@@ -222,7 +237,7 @@ fun RootScreen(viewModel: MainViewModel) {
     ) {
       OverlayIconButton(
         onClick = { sheet = Sheet.Chat },
-        icon = { Icon(Icons.Default.ChatBubble, contentDescription = "Chat") },
+        icon = { Icon(Icons.Default.ChatBubble, contentDescription = "聊天") },
       )
 
       // Talk mode gets a dedicated side bubble instead of burying it in settings.
@@ -252,14 +267,14 @@ fun RootScreen(viewModel: MainViewModel) {
         icon = {
           Icon(
             Icons.Default.RecordVoiceOver,
-            contentDescription = "Talk Mode",
+            contentDescription = "对话模式",
           )
         },
       )
 
       OverlayIconButton(
         onClick = { sheet = Sheet.Settings },
-        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+        icon = { Icon(Icons.Default.Settings, contentDescription = "设置") },
       )
     }
   }

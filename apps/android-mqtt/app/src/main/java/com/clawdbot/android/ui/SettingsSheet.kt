@@ -62,6 +62,7 @@ import androidx.core.content.ContextCompat
 import com.clawdbot.android.BuildConfig
 import com.clawdbot.android.LocationMode
 import com.clawdbot.android.MainViewModel
+import com.clawdbot.android.gateway.MqttConnectionState
 import com.clawdbot.android.NodeForegroundService
 import com.clawdbot.android.VoiceWakeMode
 import com.clawdbot.android.WakeWords
@@ -84,6 +85,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
   val manualPort by viewModel.manualPort.collectAsState()
   val manualTls by viewModel.manualTls.collectAsState()
   val connectionMode by viewModel.connectionMode.collectAsState()
+  val mqttConnectionState by viewModel.mqttConnectionState.collectAsState()
   val mqttBrokerUrl by viewModel.mqttBrokerUrl.collectAsState()
   val mqttUsername by viewModel.mqttUsername.collectAsState()
   val mqttPassword by viewModel.mqttPassword.collectAsState()
@@ -256,9 +258,9 @@ fun SettingsSheet(viewModel: MainViewModel) {
     if (visibleGateways.isEmpty()) {
       discoveryStatusText
     } else if (isConnected) {
-      "Discovery active • ${visibleGateways.size} other gateway${if (visibleGateways.size == 1) "" else "s"} found"
+      "发现已开启 · 另有 ${visibleGateways.size} 个网关"
     } else {
-      "Discovery active • ${visibleGateways.size} gateway${if (visibleGateways.size == 1) "" else "s"} found"
+      "发现已开启 · 共 ${visibleGateways.size} 个网关"
     }
 
   LazyColumn(
@@ -273,34 +275,34 @@ fun SettingsSheet(viewModel: MainViewModel) {
     verticalArrangement = Arrangement.spacedBy(6.dp),
   ) {
     // Order parity: Node → Gateway → Voice → Camera → Messaging → Location → Screen.
-    item { Text("Node", style = MaterialTheme.typography.titleSmall) }
+    item { Text("节点", style = MaterialTheme.typography.titleSmall) }
     item {
       OutlinedTextField(
         value = displayName,
         onValueChange = viewModel::setDisplayName,
-        label = { Text("Name") },
+        label = { Text("名称") },
         modifier = Modifier.fillMaxWidth(),
       )
     }
-    item { Text("Instance ID: $instanceId", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    item { Text("Device: $deviceModel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    item { Text("Version: $appVersion", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    item { Text("实例 ID：$instanceId", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    item { Text("设备：$deviceModel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    item { Text("版本：$appVersion", color = MaterialTheme.colorScheme.onSurfaceVariant) }
 
     item { HorizontalDivider() }
 
     // Gateway
-    item { Text("Gateway", style = MaterialTheme.typography.titleSmall) }
-    item { ListItem(headlineContent = { Text("Status") }, supportingContent = { Text(statusText) }) }
+    item { Text("网关", style = MaterialTheme.typography.titleSmall) }
+    item { ListItem(headlineContent = { Text("状态") }, supportingContent = { Text(statusText) }) }
     item {
       Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-        Text("Connection mode", style = MaterialTheme.typography.labelMedium)
+        Text("连接模式", style = MaterialTheme.typography.labelMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
           Row(verticalAlignment = Alignment.CenterVertically) {
             RadioButton(
               selected = connectionMode == "ws",
               onClick = { viewModel.setConnectionMode("ws") },
             )
-            Text("WebSocket (discovery)", modifier = Modifier.clickable { viewModel.setConnectionMode("ws") })
+            Text("WebSocket（发现）", modifier = Modifier.clickable { viewModel.setConnectionMode("ws") })
           }
           Row(verticalAlignment = Alignment.CenterVertically) {
             RadioButton(
@@ -313,13 +315,12 @@ fun SettingsSheet(viewModel: MainViewModel) {
       }
     }
     if (serverName != null) {
-      item { ListItem(headlineContent = { Text("Server") }, supportingContent = { Text(serverName!!) }) }
+      item { ListItem(headlineContent = { Text("服务器") }, supportingContent = { Text(serverName!!) }) }
     }
     if (remoteAddress != null) {
-      item { ListItem(headlineContent = { Text("Address") }, supportingContent = { Text(remoteAddress!!) }) }
+      item { ListItem(headlineContent = { Text("地址") }, supportingContent = { Text(remoteAddress!!) }) }
     }
     item {
-      // UI sanity: "Disconnect" only when we have an active remote.
       if (isConnected && remoteAddress != null) {
         Button(
           onClick = {
@@ -327,7 +328,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
             NodeForegroundService.stop(context)
           },
         ) {
-          Text("Disconnect")
+          Text("断开连接")
         }
       }
     }
@@ -337,12 +338,12 @@ fun SettingsSheet(viewModel: MainViewModel) {
     if (!isConnected || visibleGateways.isNotEmpty()) {
       item {
         Text(
-          if (isConnected) "Other Gateways" else "Discovered Gateways",
+          if (isConnected) "其他网关" else "已发现网关",
           style = MaterialTheme.typography.titleSmall,
         )
       }
       if (!isConnected && visibleGateways.isEmpty()) {
-        item { Text("No gateways found yet.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Text("暂未发现网关。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
       } else {
         items(items = visibleGateways, key = { it.stableId }) { gateway ->
           val detailLines =
@@ -372,7 +373,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
                   viewModel.connect(gateway)
                 },
               ) {
-                Text("Connect")
+                Text("连接")
               }
             },
           )
@@ -393,12 +394,12 @@ fun SettingsSheet(viewModel: MainViewModel) {
 
     item {
       ListItem(
-        headlineContent = { Text("Advanced") },
-        supportingContent = { Text("Manual gateway connection") },
+        headlineContent = { Text("高级") },
+        supportingContent = { Text("手动连接网关") },
         trailingContent = {
           Icon(
             imageVector = if (advancedExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-            contentDescription = if (advancedExpanded) "Collapse" else "Expand",
+            contentDescription = if (advancedExpanded) "收起" else "展开",
           )
         },
         modifier =
@@ -411,32 +412,43 @@ fun SettingsSheet(viewModel: MainViewModel) {
       AnimatedVisibility(visible = advancedExpanded) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
           if (connectionMode == "mqtt") {
+            val mqttStatusText =
+              when (mqttConnectionState) {
+                is MqttConnectionState.Disconnected -> "离线"
+                is MqttConnectionState.Connecting -> "连接中…"
+                is MqttConnectionState.Connected -> "已连接"
+                is MqttConnectionState.Error -> "错误: ${(mqttConnectionState as MqttConnectionState.Error).message}"
+              }
+            ListItem(
+              headlineContent = { Text("MQTT 状态") },
+              supportingContent = { Text(mqttStatusText, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+            )
             OutlinedTextField(
               value = mqttBrokerUrl,
               onValueChange = viewModel::setMqttBrokerUrl,
-              label = { Text("Broker URL") },
+              label = { Text("Broker 地址") },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
-              placeholder = { Text("tcp://host:1883 or ssl://host:8883") },
+              placeholder = { Text("tcp://主机:1883 或 ssl://主机:8883") },
             )
             OutlinedTextField(
               value = mqttUsername,
               onValueChange = viewModel::setMqttUsername,
-              label = { Text("Username (optional)") },
+              label = { Text("用户名（选填）") },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
             )
             OutlinedTextField(
               value = mqttPassword,
               onValueChange = viewModel::setMqttPassword,
-              label = { Text("Password (optional)") },
+              label = { Text("密码（选填）") },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
             )
             OutlinedTextField(
               value = mqttClientId,
               onValueChange = viewModel::setMqttClientId,
-              label = { Text("Client ID (optional, default: instance ID)") },
+              label = { Text("客户端 ID（选填，默认用实例 ID）") },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
             )
@@ -448,32 +460,32 @@ fun SettingsSheet(viewModel: MainViewModel) {
               },
               enabled = brokerOk,
             ) {
-              Text("Connect (MQTT)")
+              Text("连接 (MQTT)")
             }
           } else {
             ListItem(
-              headlineContent = { Text("Use Manual Gateway") },
-              supportingContent = { Text("Use this when discovery is blocked.") },
+              headlineContent = { Text("使用手动网关") },
+              supportingContent = { Text("发现被阻断时使用。") },
               trailingContent = { Switch(checked = manualEnabled, onCheckedChange = viewModel::setManualEnabled) },
             )
 
             OutlinedTextField(
               value = manualHost,
               onValueChange = viewModel::setManualHost,
-              label = { Text("Host") },
+              label = { Text("主机") },
               modifier = Modifier.fillMaxWidth(),
               enabled = manualEnabled,
             )
             OutlinedTextField(
               value = manualPort.toString(),
               onValueChange = { v -> viewModel.setManualPort(v.toIntOrNull() ?: 0) },
-              label = { Text("Port") },
+              label = { Text("端口") },
               modifier = Modifier.fillMaxWidth(),
               enabled = manualEnabled,
             )
             ListItem(
-              headlineContent = { Text("Require TLS") },
-              supportingContent = { Text("Pin the gateway certificate on first connect.") },
+              headlineContent = { Text("要求 TLS") },
+              supportingContent = { Text("首次连接时固定网关证书。") },
               trailingContent = { Switch(checked = manualTls, onCheckedChange = viewModel::setManualTls, enabled = manualEnabled) },
               modifier = Modifier.alpha(if (manualEnabled) 1f else 0.5f),
             )
@@ -487,7 +499,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
               },
               enabled = manualEnabled && hostOk && portOk,
             ) {
-              Text("Connect (Manual)")
+              Text("连接（手动）")
             }
           }
         }
@@ -497,11 +509,11 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item { HorizontalDivider() }
 
     // Voice
-    item { Text("Voice", style = MaterialTheme.typography.titleSmall) }
+    item { Text("语音", style = MaterialTheme.typography.titleSmall) }
     item {
       val enabled = voiceWakeMode != VoiceWakeMode.Off
       ListItem(
-        headlineContent = { Text("Voice Wake") },
+        headlineContent = { Text("语音唤醒") },
         supportingContent = { Text(voiceWakeStatusText) },
         trailingContent = {
           Switch(
@@ -525,8 +537,8 @@ fun SettingsSheet(viewModel: MainViewModel) {
       AnimatedVisibility(visible = voiceWakeMode != VoiceWakeMode.Off) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
           ListItem(
-            headlineContent = { Text("Foreground Only") },
-            supportingContent = { Text("Listens only while Moltbot is open.") },
+            headlineContent = { Text("仅前台") },
+            supportingContent = { Text("仅在 Moltbot 打开时聆听。") },
             trailingContent = {
               RadioButton(
                 selected = voiceWakeMode == VoiceWakeMode.Foreground,
@@ -541,8 +553,8 @@ fun SettingsSheet(viewModel: MainViewModel) {
             },
           )
           ListItem(
-            headlineContent = { Text("Always") },
-            supportingContent = { Text("Keeps listening in the background (shows a persistent notification).") },
+            headlineContent = { Text("始终") },
+            supportingContent = { Text("后台持续聆听（会显示常驻通知）。") },
             trailingContent = {
               RadioButton(
                 selected = voiceWakeMode == VoiceWakeMode.Always,
@@ -563,7 +575,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
       OutlinedTextField(
         value = wakeWordsText,
         onValueChange = setWakeWordsText,
-        label = { Text("Wake Words (comma-separated)") },
+        label = { Text("唤醒词（逗号分隔）") },
         modifier =
           Modifier.fillMaxWidth().onFocusChanged { focusState ->
             if (focusState.isFocused) {
@@ -584,13 +596,13 @@ fun SettingsSheet(viewModel: MainViewModel) {
           ),
       )
     }
-    item { Button(onClick = viewModel::resetWakeWordsDefaults) { Text("Reset defaults") } }
+    item { Button(onClick = viewModel::resetWakeWordsDefaults) { Text("恢复默认") } }
     item {
       Text(
         if (isConnected) {
-          "Any node can edit wake words. Changes sync via the gateway."
+          "任意节点可编辑唤醒词，变更会经网关同步。"
         } else {
-          "Connect to a gateway to sync wake words globally."
+          "连接网关后可全局同步唤醒词。"
         },
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -599,17 +611,17 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item { HorizontalDivider() }
 
     // Camera
-    item { Text("Camera", style = MaterialTheme.typography.titleSmall) }
+    item { Text("相机", style = MaterialTheme.typography.titleSmall) }
     item {
       ListItem(
-        headlineContent = { Text("Allow Camera") },
-        supportingContent = { Text("Allows the gateway to request photos or short video clips (foreground only).") },
+        headlineContent = { Text("允许相机") },
+        supportingContent = { Text("允许网关请求拍照或短视频（仅前台）。") },
         trailingContent = { Switch(checked = cameraEnabled, onCheckedChange = ::setCameraEnabledChecked) },
       )
     }
     item {
       Text(
-        "Tip: grant Microphone permission for video clips with audio.",
+        "提示：需要麦克风权限才能录制带声音的视频。",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
@@ -617,22 +629,22 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item { HorizontalDivider() }
 
     // Messaging
-    item { Text("Messaging", style = MaterialTheme.typography.titleSmall) }
+    item { Text("短信", style = MaterialTheme.typography.titleSmall) }
     item {
       val buttonLabel =
         when {
-          !smsPermissionAvailable -> "Unavailable"
-          smsPermissionGranted -> "Manage"
-          else -> "Grant"
+          !smsPermissionAvailable -> "不可用"
+          smsPermissionGranted -> "管理"
+          else -> "授权"
         }
       ListItem(
-        headlineContent = { Text("SMS Permission") },
+        headlineContent = { Text("短信权限") },
         supportingContent = {
           Text(
             if (smsPermissionAvailable) {
-              "Allow the gateway to send SMS from this device."
+              "允许网关从此设备发送短信。"
             } else {
-              "SMS requires a device with telephony hardware."
+              "短信功能需要设备支持电话功能。"
             },
           )
         },
@@ -657,12 +669,12 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item { HorizontalDivider() }
 
     // Location
-    item { Text("Location", style = MaterialTheme.typography.titleSmall) }
+    item { Text("位置", style = MaterialTheme.typography.titleSmall) }
     item {
       Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
         ListItem(
-          headlineContent = { Text("Off") },
-          supportingContent = { Text("Disable location sharing.") },
+          headlineContent = { Text("关闭") },
+          supportingContent = { Text("不共享位置。") },
           trailingContent = {
             RadioButton(
               selected = locationMode == LocationMode.Off,
@@ -671,8 +683,8 @@ fun SettingsSheet(viewModel: MainViewModel) {
           },
         )
         ListItem(
-          headlineContent = { Text("While Using") },
-          supportingContent = { Text("Only while Moltbot is open.") },
+          headlineContent = { Text("使用期间") },
+          supportingContent = { Text("仅在 Moltbot 打开时。") },
           trailingContent = {
             RadioButton(
               selected = locationMode == LocationMode.WhileUsing,
@@ -681,8 +693,8 @@ fun SettingsSheet(viewModel: MainViewModel) {
           },
         )
         ListItem(
-          headlineContent = { Text("Always") },
-          supportingContent = { Text("Allow background location (requires system permission).") },
+          headlineContent = { Text("始终") },
+          supportingContent = { Text("允许后台位置（需系统权限）。") },
           trailingContent = {
             RadioButton(
               selected = locationMode == LocationMode.Always,
@@ -694,8 +706,8 @@ fun SettingsSheet(viewModel: MainViewModel) {
     }
     item {
       ListItem(
-        headlineContent = { Text("Precise Location") },
-        supportingContent = { Text("Use precise GPS when available.") },
+        headlineContent = { Text("精确位置") },
+        supportingContent = { Text("在可用时使用精确 GPS。") },
         trailingContent = {
           Switch(
             checked = locationPreciseEnabled,
@@ -707,7 +719,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
     }
     item {
       Text(
-        "Always may require Android Settings to allow background location.",
+        "「始终」可能需在系统设置中允许后台位置。",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
@@ -715,11 +727,11 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item { HorizontalDivider() }
 
     // Screen
-    item { Text("Screen", style = MaterialTheme.typography.titleSmall) }
+    item { Text("屏幕", style = MaterialTheme.typography.titleSmall) }
     item {
       ListItem(
-        headlineContent = { Text("Prevent Sleep") },
-        supportingContent = { Text("Keeps the screen awake while Moltbot is open.") },
+        headlineContent = { Text("防止息屏") },
+        supportingContent = { Text("Moltbot 打开时保持屏幕常亮。") },
         trailingContent = { Switch(checked = preventSleep, onCheckedChange = viewModel::setPreventSleep) },
       )
     }
@@ -727,11 +739,11 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item { HorizontalDivider() }
 
     // Debug
-    item { Text("Debug", style = MaterialTheme.typography.titleSmall) }
+    item { Text("调试", style = MaterialTheme.typography.titleSmall) }
     item {
       ListItem(
-        headlineContent = { Text("Debug Canvas Status") },
-        supportingContent = { Text("Show status text in the canvas when debug is enabled.") },
+        headlineContent = { Text("调试画布状态") },
+        supportingContent = { Text("调试开启时在画布中显示状态文字。") },
         trailingContent = {
           Switch(
             checked = canvasDebugStatusEnabled,

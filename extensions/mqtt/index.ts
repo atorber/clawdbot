@@ -11,7 +11,7 @@ const plugin = {
   register(api: ClawdbotPluginApi) {
     setMqttRuntime(api.runtime);
     api.registerChannel({ plugin: mqttPlugin });
-    startGatewayBridge(api.runtime, new AbortController().signal);
+    startGatewayBridge(api.runtime);
   },
 };
 

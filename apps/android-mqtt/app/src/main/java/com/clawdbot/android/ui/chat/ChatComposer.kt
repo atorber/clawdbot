@@ -85,7 +85,7 @@ fun ChatComposer(
             onClick = { showSessionMenu = true },
             contentPadding = ButtonDefaults.ContentPadding,
           ) {
-            Text("Session: $currentSessionLabel")
+            Text("会话：$currentSessionLabel")
           }
 
           DropdownMenu(expanded = showSessionMenu, onDismissRequest = { showSessionMenu = false }) {
@@ -113,7 +113,7 @@ fun ChatComposer(
             onClick = { showThinkingMenu = true },
             contentPadding = ButtonDefaults.ContentPadding,
           ) {
-            Text("Thinking: ${thinkingLabel(thinkingLevel)}")
+            Text("思考：${thinkingLabel(thinkingLevel)}")
           }
 
           DropdownMenu(expanded = showThinkingMenu, onDismissRequest = { showThinkingMenu = false }) {
@@ -127,11 +127,11 @@ fun ChatComposer(
         Spacer(modifier = Modifier.weight(1f))
 
         FilledTonalIconButton(onClick = onRefresh, modifier = Modifier.size(42.dp)) {
-          Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+          Icon(Icons.Default.Refresh, contentDescription = "刷新")
         }
 
         FilledTonalIconButton(onClick = onPickImages, modifier = Modifier.size(42.dp)) {
-          Icon(Icons.Default.AttachFile, contentDescription = "Add image")
+          Icon(Icons.Default.AttachFile, contentDescription = "添加图片")
         }
       }
 
@@ -143,7 +143,7 @@ fun ChatComposer(
         value = input,
         onValueChange = { input = it },
         modifier = Modifier.fillMaxWidth(),
-        placeholder = { Text("Message Clawd…") },
+        placeholder = { Text("输入消息给 Clawd…") },
         minLines = 2,
         maxLines = 6,
       )
@@ -161,7 +161,7 @@ fun ChatComposer(
                 contentColor = Color(0xFFE74C3C),
               ),
           ) {
-            Icon(Icons.Default.Stop, contentDescription = "Abort")
+            Icon(Icons.Default.Stop, contentDescription = "中止")
           }
         } else {
           FilledTonalIconButton(onClick = {
@@ -169,7 +169,7 @@ fun ChatComposer(
             input = ""
             onSend(text)
           }, enabled = canSend) {
-            Icon(Icons.Default.ArrowUpward, contentDescription = "Send")
+            Icon(Icons.Default.ArrowUpward, contentDescription = "发送")
           }
         }
       }
@@ -204,7 +204,7 @@ private fun ConnectionPill(sessionLabel: String, healthOk: Boolean) {
       ) {}
       Text(sessionLabel, style = MaterialTheme.typography.labelSmall)
       Text(
-        if (healthOk) "Connected" else "Connecting…",
+        if (healthOk) "已连接" else "连接中…",
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -237,10 +237,10 @@ private fun ThinkingMenuItem(
 
 private fun thinkingLabel(raw: String): String {
   return when (raw.trim().lowercase()) {
-    "low" -> "Low"
-    "medium" -> "Medium"
-    "high" -> "High"
-    else -> "Off"
+    "low" -> "低"
+    "medium" -> "中"
+    "high" -> "高"
+    else -> "关"
   }
 }
 

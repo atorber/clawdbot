@@ -277,6 +277,13 @@ MQTT_BROKER_URL="mqtt://your-broker:1883" pnpm exec node scripts/test-connect.js
 
 消息格式与 WebSocket 一致： `{ type: "req", id, method, params }` → `{ type: "res", id, ok, payload?, error? }`，以及 `{ type: "event", event, payload? }`。
 
+### clientId 与 topic 设计（为何不能共用同一 clientId）
+
+- **Topic 中的 clientId**：表示「请求方/接收方」身份，用于路由。每个客户端用**自己的** clientId 发 req（`moltbot/gw/{自己的clientId}/.../req`）并订阅 res/evt（`moltbot/gw/{自己的clientId}/.../res|evt`），因此**只收到自己的响应**，多客户端彼此隔离。
+- **Broker 约束**：同一 clientId 在 Broker 上**只能有一个连接**。若 Bridge 与某客户端使用**相同的连接 clientId**，会互相踢线，故 **topic 中/连接上共用同一 clientId 不可行**。
+- **若 clientId 不同且 topic 按 clientId 区分**：各客户端订阅的 res/evt 只含自己的 clientId，自然「订阅不到彼此的 topic 消息」，这是预期隔离，不是缺陷。
+- **当前设计**：Bridge 的 **MQTT 连接** clientId 使用保留前缀 `moltbot-bridge-`，与所有客户端连接 clientId 区分；**topic 路径中的 clientId 始终是「客户端」的**（Bridge 订阅 `moltbot/gw/+/.../req`，收到后从 topic 解析出客户端 clientId，再往 `moltbot/gw/{该clientId}/.../res|evt` 回写）。Bridge 不作为 clientId 出现在 topic 中，从而避免连接冲突且路由正确。
+
 ### Bridge 配置
 
 在 `channels.mqtt` 下增加 `gatewayBridge` 配置块：
@@ -288,7 +295,7 @@ MQTT_BROKER_URL="mqtt://your-broker:1883" pnpm exec node scripts/test-connect.js
 | `brokerUrl` | string | 可选 | Bridge 使用的 MQTT Broker 地址；不填则使用第一个 MQTT 账户的 Broker |
 | `username` | string | - | Broker 用户名（未填则可用第一个账户的） |
 | `password` | string | - | Broker 密码（未填则可用第一个账户的） |
-| `clientId` | string | 自动 | Bridge 使用的 MQTT 客户端 id |
+| `clientId` | string | 不填则随机 | Bridge 的 MQTT 连接 clientId 始终带保留前缀 `moltbot-bridge-`（不填时为 `moltbot-bridge-` + 12 位随机字母，填写时为 `moltbot-bridge-` + 配置值），与 Android/其他客户端连接用 clientId 隔离，避免同一 clientId 只能一个连接冲突；Broker 要求预注册时在控制台注册该完整 clientId（如 `moltbot-bridge-mybridge`） |
 | `maxMessageSize` | number | `262144`（256KB） | 单条消息最大长度；超出会返回 `PAYLOAD_TOO_LARGE` |
 
 示例（Bridge 使用独立 Broker）：
@@ -330,6 +337,73 @@ MQTT_BROKER_URL="mqtt://your-broker:1883" pnpm exec node scripts/test-connect.js
 ```
 
 Bridge 从本机连接网关，网关会将其视为本地客户端，connect 时不需要 device nonce。日志使用子系统 `mqtt-bridge`（例如 `[bridge] subscribed to req topics`）。
+
+### Gateway 侧 MQTT 连接（Bridge）位置
+
+- **插件入口**：`extensions/mqtt/index.ts`  
+  `register()` 里会调用 `startGatewayBridge(api.runtime, ...)`，在 Gateway 启动并加载 MQTT 插件时启动 Bridge。
+- **Bridge 实现**：`extensions/mqtt/src/bridge.ts`  
+  - 读取配置：`channels.mqtt.gatewayBridge`（`enabled`、`brokerUrl`、`gatewayWsUrl`、`username`、`password`、`clientId` 等）。
+  - 若 `getBridgeConfig()` 返回 `null`（未启用或未配 `brokerUrl`），Bridge 不启动。
+  - 否则用 **`mqtt.connect(config.brokerUrl, ...)`** 连 Broker（与通道模式同一套 mqtt 库，无协议转换）。**`brokerUrl` 必须与通道模式下能正常收发的地址一致**：若通道用 `mqtt://host:1883` 能通，Bridge 也填 `mqtt://host:1883`；部分 Broker（如百度 IoT）对 `wss://...443` 不支持或鉴权不同，用 wss 会导致连接被拒。
+  - 连接成功后订阅 `moltbot/gw/+/operator/req` 与 `moltbot/gw/+/node/req`，收到请求后建 WebSocket 到 `gatewayWsUrl`（默认 `ws://127.0.0.1:18789`）并转发。
+
+### 如何确认 Gateway 中 MQTT Bridge 已连接成功
+
+1. **看 Gateway 日志**  
+   Bridge 的日志都带子系统 **`mqtt-bridge`** 或前缀 **`[bridge]`**。  
+   - **连接成功**：应看到两条信息（顺序可能相邻或隔几行）：
+     - `[bridge] starting broker=<你的 brokerUrl> gatewayWs=<gatewayWsUrl>`
+     - `[bridge] subscribed to req topics`
+   - **连接失败**：会看到例如 `[bridge] subscribe error: ...` 或 `[bridge] MQTT error: ...`。
+
+2. **如何查看 Gateway 日志**  
+   - **CLI 启动**：`moltbot gateway run` 或 `clawdbot gateway run` 时，日志在**当前终端 stdout**，直接看输出或重定向到文件。
+   - **macOS 应用**：日志在系统统一日志里，可用项目里的 `./scripts/clawlog.sh` 查询（如 `./scripts/clawlog.sh -s com.moltbot.mac 2>&1 | grep -E 'bridge|mqtt'`），或在「帮助 / 日志」等入口查看（若应用提供）。
+   - **筛选 Bridge**：在日志里搜 **`[bridge]`** 或 **`mqtt-bridge`** 即可只看 Bridge 相关行。
+
+3. **未看到任何 `[bridge]` 日志**  
+   - 确认配置里 `channels.mqtt.gatewayBridge.enabled` 为 `true` 且 `brokerUrl` 已填（或存在可用的第一个 MQTT 账户）。
+   - 确认 MQTT 插件已加载（Gateway 启动日志里应有插件加载信息）。
+   - Bridge 使用 `runtime.logging.getChildLogger({ subsystem: "mqtt-bridge" })` 输出；若仍无日志，请用最新代码重启 Gateway。
+
+4. **只有 `[bridge] starting` 和 `[bridge] MQTT disconnected`，从未出现 `[bridge] MQTT connected`**
+   - **协议/端口**：若通道模式用 **`mqtt://host:1883`** 能正常收发，请把 `gatewayBridge.brokerUrl` 也设为 **`mqtt://host:1883`**，不要用 `wss://...443`；百度 IoT 等对 wss 可能不支持或鉴权不同，会导致连接被拒。
+   - **clientId**：不填则 Bridge 使用随机 clientId；若 Broker 要求预注册（如百度 IoT），需在配置中填写控制台创建设备的 clientId。
+   - 启动日志里会打印 `broker=... clientId=xxx`，便于核对。
+
+5. **出现 `[bridge] MQTT error: ... read ECONNRESET` 或频繁 `[bridge] MQTT disconnected`**  
+   - 表示 Broker 侧关闭了连接。Bridge 会**自动重连**（reconnectPeriod 5s）；连接后应**尽量保持不断**。
+   - **常见原因**：① **Broker 空闲超时**：Bridge 使用 keepalive 30s 发送 PINGREQ，若 Broker 的空闲超时 ≤30s 仍可能断；可在 Broker 控制台调大空闲超时，或改 Bridge 配置（若支持）减小 keepalive。② **同一 clientId 被多处使用**：只保留一个 Gateway 进程、避免重复启动 Bridge（已有 30s 冷却）。③ **网络波动**：本机/机房网络不稳会断线，重连即可。
+   - **跑 E2E 或 Android 前**，请确认日志里刚出现过 `[bridge] MQTT connected` 和 `[bridge] subscribed to req topics`。
+
+6. **clientId 与连接冲突**  
+   - Broker 规定同一 clientId 只能有一个连接。Bridge 的 MQTT 连接 clientId 始终带保留前缀 `moltbot-bridge-`，与 Android/E2E 等客户端隔离。**Android 端（及 E2E 脚本）填写的 clientId 请勿以 `moltbot-bridge-` 开头**，否则会与 Bridge 抢占同一连接导致被踢线；通常使用设备 ID、实例 ID 或用户自填 ID 即可。
+
+### 端到端验证（MQTT 客户端模拟 Android）
+
+用脚本模拟 Android App 行为（operator + node 双会话 connect），经 Broker → Bridge → Gateway 做整链验证：
+
+```bash
+cd extensions/mqtt
+BROKER_URL="wss://your-broker:443" USERNAME="..." PASSWORD="..." \
+  MQTT_CLIENT_ID="my_abcd01" \
+  GATEWAY_TOKEN="<gateway.auth.token 可选，鉴权用>" \
+  node scripts/test-e2e-mqtt-client.js
+```
+
+成功时会打印：`E2E OK: operator and node both received res via MQTT → Bridge → Gateway`。需先确保 Gateway 已用带 `gatewayBridge` 的配置重启，且 Bridge 日志有 `[bridge] subscribed to req topics`。
+
+### 测试 Bridge 连通性（单条 connect）
+
+1. 在 Gateway 配置中启用 `gatewayBridge`（见上方示例或 `extensions/mqtt/sample-gateway-bridge-config.json`），重启 Gateway。
+2. 在 Gateway 日志中确认出现 `[bridge] starting broker=...` 和 `[bridge] subscribed to req topics`。
+3. 可选：用脚本验证「Broker → Bridge → Gateway」单条请求：
+   ```bash
+   cd extensions/mqtt
+   BROKER_URL="wss://your-broker/mqtt" USERNAME="..." PASSWORD="..." node scripts/test-bridge.js
+   ```
+   Broker 要求纯字母 clientId 时，脚本会随机生成纯字母；也可加 `MQTT_CLIENT_ID="自定义纯字母id"`。若出现 "Identifier rejected"，可能是同一 username 仅允许一个连接（可先停 Gateway 再跑脚本验证本机连 Broker 是否正常），或需在 Broker 控制台预注册 clientId。脚本收到任意 res（含网关返回的 error）即表示 Bridge 工作正常。
 
 ## 配置参考（v2）
 

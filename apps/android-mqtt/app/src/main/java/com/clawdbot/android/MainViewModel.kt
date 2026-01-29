@@ -3,6 +3,7 @@ package com.clawdbot.android
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.clawdbot.android.gateway.GatewayEndpoint
+import com.clawdbot.android.gateway.MqttConnectionState
 import com.clawdbot.android.chat.OutgoingAttachment
 import com.clawdbot.android.node.CameraCaptureManager
 import com.clawdbot.android.node.CanvasController
@@ -52,6 +53,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
   val manualPort: StateFlow<Int> = runtime.manualPort
   val manualTls: StateFlow<Boolean> = runtime.manualTls
   val connectionMode: StateFlow<String> = runtime.connectionMode
+  val mqttConnectionState: StateFlow<MqttConnectionState> = runtime.mqttConnectionState
   val mqttBrokerUrl: StateFlow<String> = runtime.mqttBrokerUrl
   val mqttUsername: StateFlow<String> = runtime.mqttUsername
   val mqttPassword: StateFlow<String> = runtime.mqttPassword
