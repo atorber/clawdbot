@@ -162,7 +162,18 @@ function resolveVersion(): string {
   }
 }
 
-export function createPluginRuntime(): PluginRuntime {
+export type CreatePluginRuntimeOptions = {
+  /** When provided (e.g. by gateway), plugin logging goes to this logger so bridge/plugin logs appear in gateway log output. */
+  logger?: {
+    info: (msg: string) => void;
+    warn: (msg: string) => void;
+    error: (msg: string) => void;
+    debug?: (msg: string) => void;
+  };
+};
+
+export function createPluginRuntime(opts?: CreatePluginRuntimeOptions): PluginRuntime {
+  const gatewayLog = opts?.logger;
   return {
     version: resolveVersion(),
     config: {
@@ -338,9 +349,21 @@ export function createPluginRuntime(): PluginRuntime {
     },
     logging: {
       shouldLogVerbose,
-      getChildLogger: (bindings, opts) => {
+      getChildLogger: (bindings, childOpts) => {
+        if (gatewayLog) {
+          const prefix =
+            bindings && typeof bindings === "object" && "subsystem" in bindings
+              ? `[${String((bindings as { subsystem?: string }).subsystem)}] `
+              : "";
+          return {
+            debug: (message) => gatewayLog.debug?.(`${prefix}${message}`),
+            info: (message) => gatewayLog.info(`${prefix}${message}`),
+            warn: (message) => gatewayLog.warn(`${prefix}${message}`),
+            error: (message) => gatewayLog.error(`${prefix}${message}`),
+          };
+        }
         const logger = getChildLogger(bindings, {
-          level: opts?.level ? normalizeLogLevel(opts.level) : undefined,
+          level: childOpts?.level ? normalizeLogLevel(childOpts.level) : undefined,
         });
         return {
           debug: (message) => logger.debug?.(message),

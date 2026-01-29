@@ -182,7 +182,7 @@ export function loadMoltbotPlugins(options: PluginLoadOptions = {}): PluginRegis
   // Clear previously registered plugin commands before reloading
   clearPluginCommands();
 
-  const runtime = createPluginRuntime();
+  const runtime = createPluginRuntime({ logger });
   const { registry, createApi } = createPluginRegistry({
     logger,
     runtime,
