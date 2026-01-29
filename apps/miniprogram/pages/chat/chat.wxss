@@ -80,6 +80,64 @@
   word-break: break-word;
 }
 
+.bubble-rich {
+  font-size: 28rpx;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.bubble-rich .inline-code,
+.bubble-rich code {
+  background: rgba(0, 0, 0, 0.08);
+  padding: 4rpx 8rpx;
+  border-radius: 8rpx;
+  font-family: monospace;
+  font-size: 26rpx;
+}
+
+.message-item.user .bubble-rich .inline-code,
+.message-item.user .bubble-rich code {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.bubble-rich .md-code-block {
+  margin: 12rpx 0;
+  border-radius: 12rpx;
+  overflow: hidden;
+}
+
+.bubble-rich .md-pre {
+  margin: 0;
+  padding: 16rpx 20rpx;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 12rpx;
+  font-family: monospace;
+  font-size: 24rpx;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.message-item.user .bubble-rich .md-pre {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.bubble-rich .md-p {
+  margin: 8rpx 0;
+}
+
+.bubble-rich .md-p:first-child {
+  margin-top: 0;
+}
+
+.bubble-rich .md-li {
+  margin: 4rpx 0;
+  padding-left: 8rpx;
+}
+
+.bubble-rich .md-h1 { font-size: 36rpx; font-weight: bold; margin: 16rpx 0 8rpx; }
+.bubble-rich .md-h2 { font-size: 32rpx; font-weight: bold; margin: 14rpx 0 6rpx; }
+.bubble-rich .md-h3 { font-size: 30rpx; font-weight: bold; margin: 12rpx 0 6rpx; }
+
 .time {
   font-size: 22rpx;
   color: var(--text-secondary);

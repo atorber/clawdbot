@@ -1,5 +1,6 @@
 const storage = require('../../utils/storage.js');
 const { MqttClient } = require('../../utils/mqtt-client.js');
+const { mdToNodes } = require('../../utils/md-render.js');
 
 function replaceId(tpl, id) {
   if (!tpl || !id) return tpl || '';
@@ -46,7 +47,10 @@ Page({
       return;
     }
     const cached = storage.loadChatMessages(this.config.clientId);
-    this.setData({ configValid: true, messages: cached });
+    const messages = (cached || []).map(function (m) {
+      return Object.assign({}, m, { contentNodes: m.contentNodes || mdToNodes(m.content || '') });
+    });
+    this.setData({ configValid: true, messages });
     this.connect();
   },
 
@@ -132,12 +136,14 @@ Page({
         }
       }
       const msgId = 'r-' + Date.now();
-      const messages = this.data.messages.concat([{
+      const newMsg = {
         id: msgId,
         role: 'assistant',
         content: text,
+        contentNodes: mdToNodes(text),
         timeText: timeText(),
-      }]);
+      };
+      const messages = this.data.messages.concat([newMsg]);
       this.setData({
         messages,
         scrollToId: 'msg-' + msgId,
@@ -232,6 +238,7 @@ Page({
       id: 'u-' + messageId,
       role: 'user',
       content: text,
+      contentNodes: mdToNodes(text),
       timeText: timeText(),
     };
     const messages = this.data.messages.concat([userMsg]);

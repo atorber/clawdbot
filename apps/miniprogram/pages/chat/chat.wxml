@@ -12,7 +12,10 @@
   <scroll-view class="message-list" scroll-y scroll-into-view="{{scrollToId}}" scroll-with-animation>
     <block wx:for="{{messages}}" wx:key="id">
       <view id="msg-{{item.id}}" class="message-item {{item.role}}">
-        <view class="bubble">{{item.content}}</view>
+        <view class="bubble">
+          <rich-text wx:if="{{item.contentNodes && item.contentNodes.length > 0}}" nodes="{{item.contentNodes}}" class="bubble-rich" />
+          <text wx:else>{{item.content}}</text>
+        </view>
         <view class="time">{{item.timeText}}</view>
       </view>
     </block>
