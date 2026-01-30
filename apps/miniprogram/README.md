@@ -1,4 +1,4 @@
-# MQTT 微信小程序客户端
+# Clawdbot Node MQTT 微信小程序客户端
 
 作为 [MQTT channel](https://github.com/moltbot/moltbot/tree/main/extensions/mqtt) 的配套客户端，支持配置 MQTT 信息并通过聊天界面与 Gateway 进行消息交互。
 

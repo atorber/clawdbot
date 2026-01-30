@@ -1,0 +1,11 @@
+{
+	"ios": {
+		"name": "Clawdbot Node"
+	},
+	"android": {
+		"name": "Clawdbot Node"
+	},
+	"common": {
+		"name": "Clawdbot Node"
+	}
+}
