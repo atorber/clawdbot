@@ -44,13 +44,13 @@ export function renderOverview(props: OverviewProps) {
         <div class="muted" style="margin-top: 8px;">
           ${t("overview.requireAuth")}
           <div style="margin-top: 6px;">
-            <span class="mono">clawdbot dashboard --no-open</span> → ${t("overview.requireAuthHint1")}<br />
-            <span class="mono">clawdbot doctor --generate-gateway-token</span> → ${t("overview.requireAuthHint2")}
+            <span class="mono">openclaw dashboard --no-open</span> → ${t("overview.requireAuthHint1")}<br />
+            <span class="mono">openclaw doctor --generate-gateway-token</span> → ${t("overview.requireAuthHint2")}
           </div>
           <div style="margin-top: 6px;">
             <a
               class="session-link"
-              href="https://docs.molt.bot/web/dashboard"
+              href="https://docs.openclaw.ai/web/dashboard"
               target="_blank"
               rel="noreferrer"
               title="${t("overview.docsControlUiAuthTitle")}"
@@ -66,7 +66,7 @@ export function renderOverview(props: OverviewProps) {
         <div style="margin-top: 6px;">
           <a
             class="session-link"
-            href="https://docs.molt.bot/web/dashboard"
+            href="https://docs.openclaw.ai/web/dashboard"
             target="_blank"
             rel="noreferrer"
             title="${t("overview.docsControlUiAuthTitle")}"
@@ -93,7 +93,7 @@ export function renderOverview(props: OverviewProps) {
         <div style="margin-top: 6px;">
           <a
             class="session-link"
-            href="https://docs.molt.bot/gateway/tailscale"
+            href="https://docs.openclaw.ai/gateway/tailscale"
             target="_blank"
             rel="noreferrer"
             title="${t("overview.docsTailscaleTitle")}"
@@ -102,7 +102,7 @@ export function renderOverview(props: OverviewProps) {
           <span class="muted"> · </span>
           <a
             class="session-link"
-            href="https://docs.molt.bot/web/control-ui#insecure-http"
+            href="https://docs.openclaw.ai/web/control-ui#insecure-http"
             target="_blank"
             rel="noreferrer"
             title="${t("overview.docsInsecureHttpTitle")}"
@@ -138,7 +138,7 @@ export function renderOverview(props: OverviewProps) {
                 const v = (e.target as HTMLInputElement).value;
                 props.onSettingsChange({ ...props.settings, token: v });
               }}
-              placeholder="CLAWDBOT_GATEWAY_TOKEN"
+              placeholder="OPENCLAW_GATEWAY_TOKEN"
             />
           </label>
           <label class="field">

@@ -1,4 +1,4 @@
-const KEY = "moltbot.control.settings.v1";
+const KEY = "openclaw.control.settings.v1";
 
 import { inferLocale, type Locale } from "./i18n";
 import type { ThemeMode } from "./theme";
