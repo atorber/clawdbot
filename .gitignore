@@ -75,3 +75,5 @@ USER.md
 extensions/mqtt/scripts/test-connect.js
 extensions/mqtt/scripts/test-send-message.js
 extensions/mqtt/sample-gateway-bridge-config.json
+
+.claude/*

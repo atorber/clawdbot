@@ -26,6 +26,11 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -55,6 +60,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.clawdbot.android.BuildConfig
@@ -82,7 +89,8 @@ fun SettingsSheet(viewModel: MainViewModel) {
   val mqttBrokerUrl by viewModel.mqttBrokerUrl.collectAsState()
   val mqttUsername by viewModel.mqttUsername.collectAsState()
   val mqttPassword by viewModel.mqttPassword.collectAsState()
-  val mqttClientId by viewModel.mqttClientId.collectAsState()
+  val topicClientId by viewModel.topicClientId.collectAsState()
+  val gatewayToken by viewModel.gatewayToken.collectAsState()
   val canvasDebugStatusEnabled by viewModel.canvasDebugStatusEnabled.collectAsState()
   val statusText by viewModel.statusText.collectAsState()
   val serverName by viewModel.serverName.collectAsState()
@@ -287,6 +295,8 @@ fun SettingsSheet(viewModel: MainViewModel) {
       }
     }
 
+    item { DebugLogConsole(viewModel) }
+
     item { HorizontalDivider() }
 
     item {
@@ -342,11 +352,20 @@ fun SettingsSheet(viewModel: MainViewModel) {
             singleLine = true,
           )
           OutlinedTextField(
-            value = mqttClientId,
-            onValueChange = viewModel::setMqttClientId,
-            label = { Text("客户端 ID（选填，默认用实例 ID）") },
+            value = topicClientId,
+            onValueChange = viewModel::setTopicClientId,
+            label = { Text("Topic Client ID") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            placeholder = { Text("与 Gateway Bridge 一致，默认用实例 ID") },
+          )
+          OutlinedTextField(
+            value = gatewayToken,
+            onValueChange = viewModel::setGatewayToken,
+            label = { Text("Gateway Token") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = { Text("网关认证令牌（远程连接时必填）") },
           )
           val brokerOk = mqttBrokerUrl.trim().isNotEmpty()
           Button(
@@ -620,4 +639,71 @@ private fun openAppSettings(context: Context) {
       Uri.fromParts("package", context.packageName, null),
     )
   context.startActivity(intent)
+}
+@Composable
+fun DebugLogConsole(viewModel: MainViewModel) {
+  val logs by viewModel.debugLogs.collectAsState()
+  var expanded by remember { mutableStateOf(false) }
+  val listState = rememberLazyListState()
+
+  LaunchedEffect(logs.size) {
+    if (expanded && logs.isNotEmpty()) {
+      listState.animateScrollToItem(logs.size - 1)
+    }
+  }
+
+  Column(modifier = Modifier.fillMaxWidth()) {
+    ListItem(
+      headlineContent = { Text("调试日志") },
+      trailingContent = {
+        Icon(
+          imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+          contentDescription = if (expanded) "收起" else "展开",
+          modifier = Modifier.clickable { expanded = !expanded }
+        )
+      }
+    )
+
+    AnimatedVisibility(visible = expanded) {
+      LazyColumn(
+        state = listState,
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(300.dp)
+          .padding(8.dp)
+          .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+          .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+      ) {
+        items(logs) { log ->
+          Row(verticalAlignment = Alignment.Top) {
+            Text(
+              text = log.formattedTime(),
+              style = MaterialTheme.typography.labelSmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.width(60.dp)
+            )
+            Column {
+              Text(
+                text = log.tag,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+              )
+              Text(
+                text = log.message,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = when {
+                  log.message.contains("Error") || log.message.contains("fail") -> MaterialTheme.colorScheme.error
+                  log.message.contains("Success") -> Color(0xFF4CAF50) // Green
+                  else -> MaterialTheme.colorScheme.onSurface
+                }
+              )
+            }
+          }
+          HorizontalDivider(color = MaterialTheme.colorScheme.surface, thickness = 1.dp)
+        }
+      }
+    }
+  }
 }

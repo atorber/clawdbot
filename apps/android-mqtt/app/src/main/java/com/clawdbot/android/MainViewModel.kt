@@ -48,8 +48,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
   val mqttBrokerUrl: StateFlow<String> = runtime.mqttBrokerUrl
   val mqttUsername: StateFlow<String> = runtime.mqttUsername
   val mqttPassword: StateFlow<String> = runtime.mqttPassword
-  val mqttClientId: StateFlow<String> = runtime.mqttClientId
+  val topicClientId: StateFlow<String> = runtime.topicClientId
+  val gatewayToken: StateFlow<String> = runtime.gatewayToken
   val canvasDebugStatusEnabled: StateFlow<Boolean> = runtime.canvasDebugStatusEnabled
+  val debugLogs: StateFlow<List<LogEntry>> = runtime.debugLogs
 
   val chatSessionKey: StateFlow<String> = runtime.chatSessionKey
   val chatSessionId: StateFlow<String?> = runtime.chatSessionId
@@ -98,8 +100,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     runtime.setMqttPassword(value)
   }
 
-  fun setMqttClientId(value: String) {
-    runtime.setMqttClientId(value)
+  fun setTopicClientId(value: String) {
+    runtime.setTopicClientId(value)
+  }
+
+  fun setGatewayToken(value: String) {
+    runtime.setGatewayToken(value)
   }
 
   fun setCanvasDebugStatusEnabled(value: Boolean) {

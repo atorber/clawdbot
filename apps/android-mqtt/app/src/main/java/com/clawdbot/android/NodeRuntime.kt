@@ -2,6 +2,7 @@ package com.clawdbot.android
 
 import android.Manifest
 import android.content.Context
+import android.util.Log
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Build
@@ -137,6 +138,10 @@ class NodeRuntime(context: Context) {
   private val _seamColorArgb = MutableStateFlow(DEFAULT_SEAM_COLOR_ARGB)
   val seamColorArgb: StateFlow<Long> = _seamColorArgb.asStateFlow()
 
+  // Debug Console
+  private val debugLogStore = DebugLogStore()
+  val debugLogs: StateFlow<List<LogEntry>> = debugLogStore.logs
+
   private val _isForeground = MutableStateFlow(true)
   val isForeground: StateFlow<Boolean> = _isForeground.asStateFlow()
 
@@ -246,6 +251,7 @@ class NodeRuntime(context: Context) {
         operatorStatusText.isNotBlank() && operatorStatusText != "Offline" -> operatorStatusText
         else -> nodeStatusText
       }
+    Log.d("MoltbotGateway", "gateway status: ${_statusText.value}")
   }
 
   private fun resolveMainSessionKey(): String {
@@ -279,7 +285,8 @@ class NodeRuntime(context: Context) {
   val mqttBrokerUrl: StateFlow<String> = prefs.mqttBrokerUrl
   val mqttUsername: StateFlow<String> = prefs.mqttUsername
   val mqttPassword: StateFlow<String> = prefs.mqttPassword
-  val mqttClientId: StateFlow<String> = prefs.mqttClientId
+  val topicClientId: StateFlow<String> = prefs.topicClientId
+  val gatewayToken: StateFlow<String> = prefs.gatewayToken
   val canvasDebugStatusEnabled: StateFlow<Boolean> = prefs.canvasDebugStatusEnabled
 
   private var didAutoConnect = false
@@ -401,8 +408,12 @@ class NodeRuntime(context: Context) {
     prefs.setMqttPassword(value)
   }
 
-  fun setMqttClientId(value: String) {
-    prefs.setMqttClientId(value)
+  fun setTopicClientId(value: String) {
+    prefs.setTopicClientId(value)
+  }
+
+  fun setGatewayToken(value: String) {
+    prefs.setGatewayToken(value)
   }
 
   fun setCanvasDebugStatusEnabled(value: Boolean) {
@@ -536,18 +547,33 @@ class NodeRuntime(context: Context) {
     val brokerUrl = mqttBrokerUrl.value.trim()
     if (brokerUrl.isEmpty()) {
       _statusText.value = "Failed: MQTT broker URL required"
+      Log.w("MoltbotGateway", "gateway status: ${_statusText.value}")
       return
     }
-    val token = prefs.loadGatewayToken()
+    // Topic Client ID: used in topic paths, must match Gateway Bridge config
+    val topicId = topicClientId.value.ifBlank { instanceId.value }
+    if (topicId.isBlank()) {
+      _statusText.value = "Failed: Topic Client ID required"
+      Log.w("MoltbotGateway", "gateway status: ${_statusText.value}")
+      return
+    }
+    // MQTT Client ID: random to avoid broker conflicts (each connection gets unique ID)
+    val mqttId = "moltbot-android-${java.util.UUID.randomUUID().toString().take(8)}"
+    // Prefer in-memory gatewayToken (UI may have just set it before apply() persisted)
+    val token = prefs.gatewayToken.value.ifBlank { null } ?: prefs.loadGatewayToken()
     val password = prefs.loadGatewayPassword()
-    val clientId = mqttClientId.value.ifBlank { instanceId.value }
     val mqttConn = MqttGatewayConnection(
       scope = scope,
       brokerUrl = brokerUrl,
-      clientId = clientId,
+      clientId = mqttId,
+      topicClientId = topicId,
       username = mqttUsername.value.ifBlank { null },
       password = mqttPassword.value.ifBlank { null },
-      onStateChange = { _mqttConnectionState.value = it },
+      onStateChange = { state ->
+        _mqttConnectionState.value = state
+        debugLogStore.add("MQTT", "State: $state")
+      },
+      onLog = { msg -> debugLogStore.add("MQTT", msg) }
     )
     sharedMqttConnection = mqttConn
     val targetOp = GatewayConnectionTarget.Mqtt(connection = mqttConn, role = "operator")
@@ -588,6 +614,7 @@ class NodeRuntime(context: Context) {
     val brokerUrl = mqttBrokerUrl.value.trim()
     if (brokerUrl.isEmpty()) {
       _statusText.value = "Failed: MQTT broker URL required"
+      Log.w("MoltbotGateway", "gateway status: ${_statusText.value}")
       return
     }
     connect()
@@ -702,6 +729,7 @@ class NodeRuntime(context: Context) {
   }
 
   private fun handleGatewayEvent(event: String, payloadJson: String?) {
+    debugLogStore.add("NodeRuntime", "Event: $event")
     if (event == "voicewake.changed") {
       if (payloadJson.isNullOrBlank()) return
       try {
@@ -716,6 +744,7 @@ class NodeRuntime(context: Context) {
     }
 
     talkMode.handleGatewayEvent(event, payloadJson)
+    Log.d("NodeRuntime", "Dispatching to ChatController: event=$event")
     chat.handleGatewayEvent(event, payloadJson)
   }
 

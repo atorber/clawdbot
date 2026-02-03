@@ -1,8 +1,10 @@
+
 @file:Suppress("DEPRECATION")
 
 package com.clawdbot.android
 
 import android.content.Context
+import android.os.StrictMode
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -19,6 +21,12 @@ class SecurePrefs(context: Context) {
     val defaultWakeWords: List<String> = listOf("clawd", "claude")
     private const val displayNameKey = "node.displayName"
     private const val voiceWakeModeKey = "voiceWake.mode"
+    @Volatile private var savedStrictModePolicy: StrictMode.ThreadPolicy? = null
+  }
+
+  init {
+    savedStrictModePolicy = StrictMode.getThreadPolicy()
+    StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.LAX)
   }
 
   private val json = Json { ignoreUnknownKeys = true }
@@ -67,8 +75,14 @@ class SecurePrefs(context: Context) {
   private val _mqttPassword = MutableStateFlow(prefs.getString("gateway.mqtt.password", null)?.trim().orEmpty())
   val mqttPassword: StateFlow<String> = _mqttPassword
 
-  private val _mqttClientId = MutableStateFlow(prefs.getString("gateway.mqtt.clientId", null)?.trim().orEmpty())
-  val mqttClientId: StateFlow<String> = _mqttClientId
+  // Topic Client ID: used in MQTT topic paths (moltbot/gw/{topicClientId}/...), must match Gateway Bridge config
+  // Note: MQTT connection client ID is generated randomly to avoid broker conflicts
+  private val _topicClientId = MutableStateFlow(prefs.getString("gateway.mqtt.clientId", null)?.trim().orEmpty())
+  val topicClientId: StateFlow<String> = _topicClientId
+
+  // Gateway Token: authentication token for Gateway handshake (required for remote connections)
+  private val _gatewayToken = MutableStateFlow(loadGatewayToken().orEmpty())
+  val gatewayToken: StateFlow<String> = _gatewayToken
 
   private val _canvasDebugStatusEnabled =
     MutableStateFlow(prefs.getBoolean("canvas.debugStatusEnabled", false))
@@ -82,6 +96,13 @@ class SecurePrefs(context: Context) {
 
   private val _talkEnabled = MutableStateFlow(prefs.getBoolean("talk.enabled", false))
   val talkEnabled: StateFlow<Boolean> = _talkEnabled
+
+  init {
+    savedStrictModePolicy?.let {
+      StrictMode.setThreadPolicy(it)
+      savedStrictModePolicy = null
+    }
+  }
 
   fun setDisplayName(value: String) {
     val trimmed = value.trim()
@@ -127,10 +148,16 @@ class SecurePrefs(context: Context) {
     _mqttPassword.value = trimmed
   }
 
-  fun setMqttClientId(value: String) {
+  fun setTopicClientId(value: String) {
     val trimmed = value.trim()
     prefs.edit { putString("gateway.mqtt.clientId", trimmed) }
-    _mqttClientId.value = trimmed
+    _topicClientId.value = trimmed
+  }
+
+  fun setGatewayToken(value: String) {
+    val trimmed = value.trim()
+    saveGatewayToken(trimmed)
+    _gatewayToken.value = trimmed
   }
 
   fun setCanvasDebugStatusEnabled(value: Boolean) {

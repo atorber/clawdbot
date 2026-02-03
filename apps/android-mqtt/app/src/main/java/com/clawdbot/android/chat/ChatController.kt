@@ -1,5 +1,6 @@
 package com.clawdbot.android.chat
 
+import android.util.Log
 import com.clawdbot.android.gateway.GatewaySession
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -226,8 +227,10 @@ class ChatController(
   }
 
   fun handleGatewayEvent(event: String, payloadJson: String?) {
-    when (event) {
+    Log.d("ChatController", "handleGatewayEvent: event=$event")
+    when (event.trim()) {
       "tick" -> {
+        Log.d("ChatController", "Received tick, scheduling health poll")
         scope.launch { pollHealthIfNeeded(force = false) }
       }
       "health" -> {

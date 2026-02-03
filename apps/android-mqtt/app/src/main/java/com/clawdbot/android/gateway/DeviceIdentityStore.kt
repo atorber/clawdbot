@@ -1,6 +1,7 @@
 package com.clawdbot.android.gateway
 
 import android.content.Context
+import android.os.StrictMode
 import android.util.Base64
 import java.io.File
 import java.security.KeyFactory
@@ -23,21 +24,53 @@ class DeviceIdentityStore(context: Context) {
   private val json = Json { ignoreUnknownKeys = true }
   private val identityFile = File(context.filesDir, "moltbot/identity/device.json")
 
-  @Synchronized
+  /** In-memory cache so subsequent calls skip disk I/O. */
+  @Volatile private var cachedIdentity: DeviceIdentity? = null
+
+  /**
+   * Returns cached/persisted identity or generates a new one.
+   * Uses double-checked locking: expensive generate() runs outside lock to avoid contention.
+   */
   fun loadOrCreate(): DeviceIdentity {
+    // Fast path: return cached value
+    cachedIdentity?.let { return it }
+
+    // First check (unlocked): try to load from disk
     val existing = load()
     if (existing != null) {
-      val derived = deriveDeviceId(existing.publicKeyRawBase64)
-      if (derived != null && derived != existing.deviceId) {
-        val updated = existing.copy(deviceId = derived)
-        save(updated)
-        return updated
-      }
-      return existing
+      val identity = maybeFixDeviceId(existing)
+      cachedIdentity = identity
+      return identity
     }
+
+    // Generate outside lock (expensive, may retry/sleep)
     val fresh = generate()
-    save(fresh)
-    return fresh
+
+    // Second check (locked): another thread may have created identity while we were generating
+    synchronized(this) {
+      cachedIdentity?.let { return it }
+      val diskCheck = load()
+      if (diskCheck != null) {
+        val identity = maybeFixDeviceId(diskCheck)
+        cachedIdentity = identity
+        return identity
+      }
+      save(fresh)
+      cachedIdentity = fresh
+      return fresh
+    }
+  }
+
+  /** If deviceId doesn't match derived value, fix and persist. */
+  private fun maybeFixDeviceId(identity: DeviceIdentity): DeviceIdentity {
+    val derived = deriveDeviceId(identity.publicKeyRawBase64)
+    return if (derived != null && derived != identity.deviceId) {
+      val updated = identity.copy(deviceId = derived)
+      save(updated)
+      updated
+    } else {
+      identity
+    }
   }
 
   fun signPayload(payload: String, identity: DeviceIdentity): String? {
@@ -93,15 +126,46 @@ class DeviceIdentityStore(context: Context) {
   }
 
   private fun generate(): DeviceIdentity {
-    val keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
-    val spki = keyPair.public.encoded
-    val rawPublic = stripSpkiPrefix(spki)
-    val deviceId = sha256Hex(rawPublic)
-    val privateKey = keyPair.private.encoded
+    // Wait for Ed25519 provider warm-up (started in NodeApp.onCreate)
+    com.clawdbot.android.NodeApp.waitForEd25519Ready()
+
+    // Temporarily disable StrictMode as it may interfere with security provider initialization
+    val oldPolicy = StrictMode.getThreadPolicy()
+    StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.LAX)
+
+    try {
+      // More aggressive retry with longer waits (total ~15s max)
+      val delays = longArrayOf(0, 500, 1000, 1500, 2000, 2500, 3000, 3500)
+      for ((attempt, delayMs) in delays.withIndex()) {
+        if (delayMs > 0) Thread.sleep(delayMs)
+        try {
+          val keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+          val spki = keyPair.public.encoded
+          val rawPublic = stripSpkiPrefix(spki)
+          val deviceId = sha256Hex(rawPublic)
+          val privateKey = keyPair.private.encoded
+          return DeviceIdentity(
+            deviceId = deviceId,
+            publicKeyRawBase64 = Base64.encodeToString(rawPublic, Base64.NO_WRAP),
+            privateKeyPkcs8Base64 = Base64.encodeToString(privateKey, Base64.NO_WRAP),
+            createdAtMs = System.currentTimeMillis(),
+          )
+        } catch (e: Throwable) {
+          android.util.Log.w("DeviceIdentityStore", "generate attempt $attempt failed: ${e.message}")
+        }
+      }
+    } finally {
+      StrictMode.setThreadPolicy(oldPolicy)
+    }
+
+    // Ed25519 not available on this device (e.g. Android 16 Beta bug).
+    // Return a fallback identity with random deviceId but no signing capability.
+    android.util.Log.e("DeviceIdentityStore", "Ed25519 unavailable, using fallback identity without signing")
+    val randomId = java.util.UUID.randomUUID().toString().replace("-", "")
     return DeviceIdentity(
-      deviceId = deviceId,
-      publicKeyRawBase64 = Base64.encodeToString(rawPublic, Base64.NO_WRAP),
-      privateKeyPkcs8Base64 = Base64.encodeToString(privateKey, Base64.NO_WRAP),
+      deviceId = randomId,
+      publicKeyRawBase64 = "",
+      privateKeyPkcs8Base64 = "",
       createdAtMs = System.currentTimeMillis(),
     )
   }

@@ -16,8 +16,8 @@
  *
  * Protocol alignment with Android (MqttGatewayConnection.kt):
  * - Topics: moltbot/gw/{clientId}/{operator|node}/req (pub from client), res/evt (sub).
- * - Payload: UTF-8 JSON. Req = { type:"req", id, method, params? }; res = { type:"res", id, ok, payload?, error? }; event = { type:"event", event, payload?, seq? }.
- * - Bridge forwards req as-is; publishes full WS frame for res/evt. Android parses type and handles res/event in GatewaySession.handleMessage.
+ * - Payload: UTF-8 JSON only. Req = { type:"req", id, method, params? }; res = { type:"res", id, ok, payload?, error? }; event = { type:"event", event, payload?, seq? }.
+ * - Bridge and Android use the same format: all MQTT payloads are JSON strings (no binary). Bridge publishes via publishJson (object → stringify); Android sends/receives UTF-8 JSON.
  */
 
 import type { MqttClient } from "mqtt";
@@ -40,6 +40,12 @@ const BRIDGE_RESTART_DELAY_MS = 3000;
 const BRIDGE_RECONNECT_PERIOD_MS = 5000;
 /** Keepalive (seconds): send PINGREQ this often so broker does not close for idle; use < broker idle timeout. */
 const BRIDGE_KEEPALIVE_S = 30;
+/** WebSocket connect timeout (ms): reject if WS doesn't open within this time. */
+const WS_CONNECT_TIMEOUT_MS = 10_000;
+/** WebSocket ping interval (ms): send ping to detect zombie connections. */
+const WS_PING_INTERVAL_MS = 30_000;
+/** WebSocket pong timeout (ms): close connection if no pong received within this time after ping. */
+const WS_PONG_TIMEOUT_MS = 10_000;
 
 let currentBridgeAbortController: AbortController | null = null;
 let scheduledBridgeStartTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -125,22 +131,41 @@ type Session = {
   ws: WebSocket;
   clientId: string;
   role: string;
-  publish: (topic: string, payload: string | Buffer, opts?: { qos?: 0 | 1 | 2 }) => void;
+  /** Publish JSON object to MQTT; payload is stringified internally. */
+  publishJson: (topic: string, payloadObj: object) => void;
   maxMessageSize: number;
   log: { info?: (msg: string) => void; warn?: (msg: string) => void };
+  /** Timestamp of last pong received (for health check). */
+  lastPongTime: number;
+  /** Ping interval timer (cleared on close). */
+  pingTimer?: ReturnType<typeof setInterval>;
+};
+
+/** Pending session with version for race condition prevention. */
+type PendingSession = {
+  promise: Promise<Session>;
+  /** Version number to detect stale promises after reconnect. */
+  version: number;
+  /** Queued requests to send once session is established (non-connect only). */
+  queuedRequests: string[];
 };
 
 /**
  * Creates a WebSocket session to the gateway. When WS opens, the gateway sends
  * connect.challenge; we ignore it. Then we send initialReq (the first MQTT req that
  * triggered this session). Resolves when WS is open and initialReq has been sent.
+ *
+ * Includes:
+ * - Connect timeout (WS_CONNECT_TIMEOUT_MS)
+ * - Ping/pong health check (WS_PING_INTERVAL_MS / WS_PONG_TIMEOUT_MS)
+ * - Close reason logging
  */
 function createSession(
   clientId: string,
   role: string,
   gatewayWsUrl: string,
   initialReq: string,
-  publish: (topic: string, payload: string | Buffer, opts?: { qos?: 0 | 1 | 2 }) => void,
+  publishJsonToMqtt: (topic: string, payloadObj: object) => void,
   maxMessageSize: number,
   log: { info?: (msg: string) => void; warn?: (msg: string) => void },
   onClose: () => void,
@@ -153,12 +178,55 @@ function createSession(
       ws,
       clientId,
       role,
-      publish,
+      publishJson: publishJsonToMqtt,
       maxMessageSize,
       log,
+      lastPongTime: Date.now(),
     };
 
+    // Connect timeout: reject if WS doesn't open within WS_CONNECT_TIMEOUT_MS
+    const connectTimeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        try { ws.close(); } catch {}
+        reject(new Error(`WebSocket connect timeout (${WS_CONNECT_TIMEOUT_MS}ms)`));
+      }
+    }, WS_CONNECT_TIMEOUT_MS);
+
+    const clearConnectTimeout = () => {
+      clearTimeout(connectTimeout);
+    };
+
+    // Start ping/pong health check
+    const startPingTimer = () => {
+      session.pingTimer = setInterval(() => {
+        const timeSinceLastPong = Date.now() - session.lastPongTime;
+        if (timeSinceLastPong > WS_PING_INTERVAL_MS + WS_PONG_TIMEOUT_MS) {
+          log.warn?.(`[bridge] WS pong timeout ${clientId}/${role} (${timeSinceLastPong}ms since last pong), closing`);
+          try { ws.close(); } catch {}
+          return;
+        }
+        try {
+          ws.ping();
+        } catch (e) {
+          log.warn?.(`[bridge] WS ping failed ${clientId}/${role}: ${String(e)}`);
+        }
+      }, WS_PING_INTERVAL_MS);
+    };
+
+    const stopPingTimer = () => {
+      if (session.pingTimer) {
+        clearInterval(session.pingTimer);
+        session.pingTimer = undefined;
+      }
+    };
+
+    ws.on("pong", () => {
+      session.lastPongTime = Date.now();
+    });
+
     ws.on("open", () => {
+      clearConnectTimeout();
       try {
         ws.send(initialReq);
       } catch (e) {
@@ -170,39 +238,49 @@ function createSession(
       }
       if (!resolved) {
         resolved = true;
+        startPingTimer();
         resolve(session);
       }
     });
 
     ws.on("message", (data: WebSocket.RawData) => {
-      const text = typeof data === "string" ? data : data.toString("utf8");
-      let parsed: { type?: string; event?: string; id?: string };
+      const raw = typeof data === "string" ? data : data.toString("utf8");
+      const text = raw.replace(/\0/g, "").trim();
+      if (!text) return;
+      let parsed: { type?: string; event?: string; id?: string; ok?: boolean; error?: { code?: string; message?: string } };
       try {
-        parsed = JSON.parse(text) as { type?: string; event?: string; id?: string };
+        parsed = JSON.parse(text) as { type?: string; event?: string; id?: string; ok?: boolean; error?: { code?: string; message?: string } };
       } catch {
         return;
       }
       if (parsed?.type === "event") {
+        // Gateway sends challenge for remote connections; Bridge connects locally
+        // (ws://127.0.0.1) which skips challenge verification, so we ignore it.
         if (parsed.event === "connect.challenge") return;
-        const payload = JSON.stringify(parsed);
-        if (payload.length > maxMessageSize) {
+        if (JSON.stringify(parsed).length > maxMessageSize) {
           log.warn?.(`[bridge] evt too large for ${clientId}/${role}, dropping`);
           return;
         }
-        publish(evtTopic(clientId, role), payload, { qos: QOS });
+        session.publishJson(evtTopic(clientId, role), parsed);
         return;
       }
       if (parsed?.type === "res") {
-        const payload = JSON.stringify(parsed);
-        if (payload.length > maxMessageSize) {
+        // If Gateway returns "invalid handshake" error, session state is stale on Gateway side.
+        // Close this WS so next request creates fresh session with connect.
+        if (parsed.ok === false && parsed.error?.message?.includes("invalid handshake")) {
+          log.warn?.(`[bridge] Gateway session invalid for ${clientId}/${role}, closing WS`);
+          try { ws.close(); } catch {}
+        }
+        if (JSON.stringify(parsed).length > maxMessageSize) {
           log.warn?.(`[bridge] res too large for ${clientId}/${role}, dropping`);
           return;
         }
-        publish(resTopic(clientId, role), payload, { qos: QOS });
+        session.publishJson(resTopic(clientId, role), parsed);
       }
     });
 
     ws.on("error", (err) => {
+      clearConnectTimeout();
       if (!resolved) {
         resolved = true;
         reject(err);
@@ -210,7 +288,11 @@ function createSession(
       log.warn?.(`[bridge] WS error ${clientId}/${role}: ${String(err)}`);
     });
 
-    ws.on("close", () => {
+    ws.on("close", (code, reason) => {
+      clearConnectTimeout();
+      stopPingTimer();
+      const reasonStr = reason?.toString() || "";
+      log.info?.(`[bridge] WS closed ${clientId}/${role} code=${code} reason=${reasonStr}`);
       onClose();
     });
   });
@@ -284,8 +366,11 @@ function runBridge(runtime: PluginRuntime): void {
   log.info?.(`[bridge] starting broker=${config.brokerUrl} gatewayWs=${config.gatewayWsUrl} clientId=${config.clientId}`);
 
   const sessions = new Map<string, Session>();
-  const pendingSessions = new Map<string, Promise<Session>>();
+  // 方案2: PendingSession with version for race condition prevention
+  const pendingSessions = new Map<string, PendingSession>();
   const sessionKey = (clientId: string, role: string) => `${clientId}\0${role}`;
+  // Session version counter: incremented on each new session creation to detect stale promises
+  let sessionVersion = 0;
 
   const mqttClient: MqttClient = mqtt.connect(config.brokerUrl, {
     clientId: config.clientId,
@@ -297,23 +382,28 @@ function runBridge(runtime: PluginRuntime): void {
     connectTimeout: 15000,
   });
 
-  let handle: { publish: (topic: string, payload: string | Buffer, opts?: { qos?: 0 | 1 | 2 }) => void } | null = null;
+  /** Strip NUL and trim so MQTT payload is safe for JSON.parse (some brokers/tools truncate at \\0). */
+  const sanitizeMqttPayload = (raw: string): string => raw.replace(/\0/g, "").trim();
+
+  /** Publish JSON object to MQTT (unified payload format: UTF-8 JSON string). */
+  let handle: { publishJson: (topic: string, payloadObj: object) => void } | null = null;
   let lastDisconnectLogTime = 0;
   const DISCONNECT_LOG_INTERVAL_MS = 10_000;
 
-  const payloadPreview = (p: string | Buffer, maxLen: number = 120): string => {
-    const s = typeof p === "string" ? p : p.toString("utf8");
+  const payloadPreview = (x: string | object, maxLen: number = 120): string => {
+    const s = typeof x === "string" ? x : JSON.stringify(x);
     if (s.length <= maxLen) return s;
     return s.slice(0, maxLen) + "...";
   };
 
   mqttClient.on("connect", () => {
     log.info?.("[bridge] MQTT connected");
-    // Set handle immediately so we can publish error responses as soon as we receive any message.
     handle = {
-      publish: (topic: string, payload: string | Buffer, opts?: { qos?: 0 | 1 | 2 }) => {
-        log.info?.(`[bridge] MQTT send topic=${topic} payload=${payloadPreview(payload)}`);
-        mqttClient.publish(topic, payload, { qos: opts?.qos ?? QOS });
+      publishJson: (topic: string, payloadObj: object) => {
+        const payload = sanitizeMqttPayload(JSON.stringify(payloadObj));
+        if (!payload) return;
+        log.info?.(`[bridge] MQTT send topic=${topic} payload=${payloadPreview(payloadObj)}`);
+        mqttClient.publish(topic, payload, { qos: QOS });
       },
     };
     mqttClient.subscribe([REQ_OPERATOR, REQ_NODE], { qos: QOS }, (err) => {
@@ -336,40 +426,64 @@ function runBridge(runtime: PluginRuntime): void {
           "s; will auto-reconnect; typical causes: broker idle timeout, duplicate clientId, or network)",
       );
     }
+    // 方案4: MQTT 重连后会话清理
+    // Close all WebSocket sessions when MQTT disconnects. This ensures fresh
+    // state when MQTT reconnects, avoiding stale sessions that can't receive
+    // responses (MQTT subscription is lost on disconnect).
+    if (sessions.size > 0 || pendingSessions.size > 0) {
+      log.info?.(`[bridge] cleaning up ${sessions.size} sessions and ${pendingSessions.size} pending on MQTT close`);
+      for (const s of sessions.values()) {
+        if (s.pingTimer) clearInterval(s.pingTimer);
+        try { s.ws.close(); } catch {}
+      }
+      sessions.clear();
+      pendingSessions.clear();
+    }
   });
 
   mqttClient.on("message", (topic: string, payload: Buffer) => {
     const parsed = parseReqTopic(topic);
     if (!parsed || !handle) return;
     const { clientId, role } = parsed;
-    const reqJson = payload.toString("utf8");
-    log.info?.(`[bridge] MQTT recv topic=${topic} clientId=${clientId} role=${role} payload=${payloadPreview(reqJson)}`);
-    if (reqJson.length > config.maxMessageSize) {
-      let id: string | undefined;
-      try {
-        const obj = JSON.parse(reqJson) as { id?: string };
-        id = typeof obj?.id === "string" ? obj.id : undefined;
-      } catch {
-        // ignore
-      }
-      const errRes = JSON.stringify({
+    const reqJson = sanitizeMqttPayload(payload.toString("utf8"));
+    if (!reqJson) {
+      log.warn?.(`[bridge] MQTT recv empty payload for ${clientId}/${role}, rejecting`);
+      handle.publishJson(resTopic(clientId, role), {
         type: "res",
-        id: id ?? "",
+        id: "",
         ok: false,
-        error: { code: "PAYLOAD_TOO_LARGE", message: "Request payload exceeds max size" },
+        error: { code: "INVALID_JSON", message: "Request payload must be non-empty UTF-8 JSON" },
       });
-      handle.publish(resTopic(clientId, role), errRes, { qos: QOS });
+      return;
+    }
+    log.info?.(`[bridge] MQTT recv topic=${topic} clientId=${clientId} role=${role} payload=${payloadPreview(reqJson)}`);
+
+    let reqObj: { id?: string; method?: string };
+    try {
+      reqObj = JSON.parse(reqJson) as { id?: string; method?: string };
+    } catch {
+      log.warn?.(`[bridge] MQTT recv invalid JSON for ${clientId}/${role}, rejecting`);
+      handle.publishJson(resTopic(clientId, role), {
+        type: "res",
+        id: "",
+        ok: false,
+        error: { code: "INVALID_JSON", message: "Request payload must be UTF-8 JSON" },
+      });
       return;
     }
 
-    // Check if this is a connect request - if so, we need a fresh WebSocket session
-    let isConnectRequest = false;
-    try {
-      const obj = JSON.parse(reqJson) as { method?: string };
-      isConnectRequest = obj?.method === "connect";
-    } catch {
-      // ignore parse errors
+    if (reqJson.length > config.maxMessageSize) {
+      const errObj = {
+        type: "res",
+        id: typeof reqObj?.id === "string" ? reqObj.id : "",
+        ok: false,
+        error: { code: "PAYLOAD_TOO_LARGE", message: "Request payload exceeds max size" },
+      };
+      handle.publishJson(resTopic(clientId, role), errObj);
+      return;
     }
+
+    const isConnectRequest = reqObj?.method === "connect";
 
     const key = sessionKey(clientId, role);
     const existing = sessions.get(key);
@@ -403,55 +517,126 @@ function runBridge(runtime: PluginRuntime): void {
     }
 
     let pending = pendingSessions.get(key);
-    const weCreatedPending = !pending;
-    if (!pending) {
-      pending = createSession(
-        clientId,
-        role,
-        config.gatewayWsUrl,
-        reqJson,
-        (t, p, opts) => {
-          if (handle) handle.publish(t, p, opts);
-        },
-        config.maxMessageSize,
-        log,
-        () => {
-          sessions.delete(key);
-          pendingSessions.delete(key);
-        },
-      )
-        .then((s) => {
-          pendingSessions.delete(key);
-          sessions.set(key, s);
-          return s;
-        })
-        .catch((err) => {
-          pendingSessions.delete(key);
-          throw err;
-        });
-      pendingSessions.set(key, pending);
+
+    // 方案7: Queue non-connect requests while session is being established
+    if (pending && !isConnectRequest) {
+      pending.queuedRequests.push(reqJson);
+      log.info?.(`[bridge] queued request for ${clientId}/${role} (queue size: ${pending.queuedRequests.length})`);
+      return;
     }
 
-    pending
+    if (!isConnectRequest && !pending) {
+      log.warn?.(`[bridge] no session for ${clientId}/${role}, rejecting non-connect request`);
+      handle.publishJson(resTopic(clientId, role), {
+        type: "res",
+        id: typeof reqObj?.id === "string" ? reqObj.id : "",
+        ok: false,
+        error: { code: "NO_SESSION", message: "No active session; send connect first" },
+      });
+      return;
+    }
+
+    // 方案2: Create new session with version tracking
+    const thisVersion = ++sessionVersion;
+    const sessionPromise = createSession(
+      clientId,
+      role,
+      config.gatewayWsUrl,
+      reqJson,
+      (topic, payloadObj) => {
+        if (handle) handle.publishJson(topic, payloadObj);
+      },
+      config.maxMessageSize,
+      log,
+      () => {
+        // Only delete if this session is still the current one (avoid deleting newer sessions)
+        const currentSession = sessions.get(key);
+        const currentPending = pendingSessions.get(key);
+        if (currentPending?.version === thisVersion) {
+          pendingSessions.delete(key);
+        }
+        // For sessions map, we need to check if it's the same session object
+        // Since we store the session after promise resolves, check by comparing
+        // We mark the session with its version when storing it
+        if (currentSession && (currentSession as Session & { _version?: number })._version === thisVersion) {
+          sessions.delete(key);
+        }
+      },
+    );
+
+    const pendingSession: PendingSession = {
+      promise: sessionPromise,
+      version: thisVersion,
+      queuedRequests: [],
+    };
+    pendingSessions.set(key, pendingSession);
+
+    sessionPromise
       .then((s) => {
-        if (!weCreatedPending && s.ws.readyState === WebSocket.OPEN) sendPayload(s, reqJson);
+        // 方案2: Check version to avoid stale session race
+        const currentPending = pendingSessions.get(key);
+        if (!currentPending || currentPending.version !== thisVersion) {
+          log.info?.(`[bridge] session ${clientId}/${role} v${thisVersion} superseded by v${currentPending?.version}, closing`);
+          try { s.ws.close(); } catch {}
+          return;
+        }
+
+        pendingSessions.delete(key);
+        // Mark session with version for onClose check
+        (s as Session & { _version?: number })._version = thisVersion;
+        sessions.set(key, s);
+
+        // 方案7: Send queued requests after session is established
+        if (pendingSession.queuedRequests.length > 0) {
+          log.info?.(`[bridge] sending ${pendingSession.queuedRequests.length} queued requests for ${clientId}/${role}`);
+          for (const queued of pendingSession.queuedRequests) {
+            if (s.ws.readyState === WebSocket.OPEN) {
+              sendPayload(s, queued);
+            }
+          }
+        }
       })
       .catch((err) => {
+        // 方案2: Only clean up if version matches
+        const currentPending = pendingSessions.get(key);
+        if (currentPending?.version === thisVersion) {
+          pendingSessions.delete(key);
+        }
+
         log.warn?.(`[bridge] session failed ${clientId}/${role}: ${String(err)}`);
-        let id: string | undefined;
+
+        let reqObjId: string | undefined;
         try {
           const obj = JSON.parse(reqJson) as { id?: string };
-          id = typeof obj?.id === "string" ? obj.id : undefined;
+          reqObjId = typeof obj?.id === "string" ? obj.id : undefined;
         } catch {
           // ignore
         }
-        const errRes = JSON.stringify({
-          type: "res",
-          id: id ?? "",
-          ok: false,
-          error: { code: "BRIDGE_ERROR", message: String(err) },
-        });
-        if (handle) handle.publish(resTopic(clientId, role), errRes, { qos: QOS });
+        if (handle) {
+          handle.publishJson(resTopic(clientId, role), {
+            type: "res",
+            id: reqObjId ?? "",
+            ok: false,
+            error: { code: "BRIDGE_ERROR", message: String(err) },
+          });
+        }
+        for (const queued of pendingSession.queuedRequests) {
+          let queuedId: string | undefined;
+          try {
+            const obj = JSON.parse(queued) as { id?: string };
+            queuedId = typeof obj?.id === "string" ? obj.id : undefined;
+          } catch {
+            // ignore
+          }
+          if (handle) {
+            handle.publishJson(resTopic(clientId, role), {
+              type: "res",
+              id: queuedId ?? "",
+              ok: false,
+              error: { code: "BRIDGE_ERROR", message: String(err) },
+            });
+          }
+        }
       });
   });
 
@@ -462,7 +647,9 @@ function runBridge(runtime: PluginRuntime): void {
   abortSignal.addEventListener(
     "abort",
     () => {
+      // Stop all ping timers and close WebSocket sessions
       for (const s of sessions.values()) {
+        if (s.pingTimer) clearInterval(s.pingTimer);
         try {
           s.ws.close();
         } catch {
@@ -470,6 +657,7 @@ function runBridge(runtime: PluginRuntime): void {
         }
       }
       sessions.clear();
+      pendingSessions.clear();
       try {
         mqttClient.end(true);
       } catch {

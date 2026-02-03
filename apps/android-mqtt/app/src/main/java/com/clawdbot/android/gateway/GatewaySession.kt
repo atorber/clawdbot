@@ -24,6 +24,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 
+private const val CONTROL_UI_CLIENT_ID = "moltbot-control-ui"
+private const val FALLBACK_CONTROL_UI_CLIENT_ID = "moltbot-android"
+private const val FALLBACK_CONTROL_UI_CLIENT_MODE = "node"
+
 data class GatewayClientInfo(
   val id: String,
   val displayName: String?,
@@ -149,6 +153,7 @@ class GatewaySession(
       } else {
         json.parseToJsonElement(paramsJson)
       }
+    Log.d("MoltbotGateway", "Session request method=$method")
     val res = conn.request(method, params, timeoutMs)
     if (res.ok) return res.payloadJson ?: ""
     val err = res.error
@@ -219,13 +224,39 @@ class GatewaySession(
     }
 
     private suspend fun sendConnect(connectNonce: String?) {
-      val identity = identityStore.loadOrCreate()
-      val storedToken = deviceAuthStore.loadToken(identity.deviceId, options.role)
+      // Helper to safely preview token (first 8 chars + length)
+      fun tokenPreview(t: String?): String {
+        if (t.isNullOrBlank()) return "(empty)"
+        val prefix = t.take(8)
+        return "$prefix... (len=${t.length})"
+      }
+
+      Log.d(loggerTag, "sendConnect entered nonce=$connectNonce rawToken=${tokenPreview(token)}")
+      val identity = try {
+        identityStore.loadOrCreate()
+      } catch (e: Throwable) {
+        Log.w(loggerTag, "loadOrCreate threw: ${e.javaClass.simpleName} ${e.message}")
+        throw e
+      }
+      Log.d(loggerTag, "identity deviceId=${identity.deviceId.take(8)}... hasKeys=${identity.publicKeyRawBase64.isNotEmpty()}")
+      val storedToken = try {
+        deviceAuthStore.loadToken(identity.deviceId, options.role)
+      } catch (e: Throwable) {
+        Log.w(loggerTag, "loadToken threw: ${e.javaClass.simpleName} ${e.message}")
+        throw e
+      }
+      Log.d(loggerTag, "storedToken=${tokenPreview(storedToken)} role=${options.role}")
       val trimmedToken = token?.trim().orEmpty()
       val authToken = if (storedToken.isNullOrBlank()) trimmedToken else storedToken
+      Log.w(loggerTag, "Sending connect: nonce=$connectNonce authToken=${tokenPreview(authToken)} usingStored=${!storedToken.isNullOrBlank()}")
       val canFallbackToShared = !storedToken.isNullOrBlank() && trimmedToken.isNotBlank()
       val payload = buildConnectParams(identity, connectNonce, authToken, password?.trim())
-      val res = request("connect", payload, timeoutMs = 8_000)
+      val res = try {
+        request("connect", payload, timeoutMs = 8_000)
+      } catch (e: Throwable) {
+        Log.w(loggerTag, "connect request threw: ${e.javaClass.simpleName} ${e.message}")
+        throw e
+      }
       if (!res.ok) {
         val msg = res.error?.message ?: "connect failed"
         if (canFallbackToShared) {
@@ -258,14 +289,27 @@ class GatewaySession(
       authPassword: String?,
     ): JsonObject {
       val client = options.client
+      val isControlUiClient = client.id == CONTROL_UI_CLIENT_ID
+      val identityHasKeys =
+        identity.publicKeyRawBase64.isNotBlank() && identity.privateKeyPkcs8Base64.isNotBlank()
+      val (effectiveClientId, effectiveClientMode) =
+        if (isControlUiClient && !identityHasKeys) {
+          Log.w(
+            loggerTag,
+            "control-ui identity missing keys; falling back to $FALLBACK_CONTROL_UI_CLIENT_ID",
+          )
+          FALLBACK_CONTROL_UI_CLIENT_ID to FALLBACK_CONTROL_UI_CLIENT_MODE
+        } else {
+          client.id to client.mode
+        }
       val locale = Locale.getDefault().toLanguageTag()
       val clientObj =
         buildJsonObject {
-          put("id", JsonPrimitive(client.id))
+          put("id", JsonPrimitive(effectiveClientId))
           client.displayName?.let { put("displayName", JsonPrimitive(it)) }
           put("version", JsonPrimitive(client.version))
           put("platform", JsonPrimitive(client.platform))
-          put("mode", JsonPrimitive(client.mode))
+          put("mode", JsonPrimitive(effectiveClientMode))
           client.instanceId?.let { put("instanceId", JsonPrimitive(it)) }
           client.deviceFamily?.let { put("deviceFamily", JsonPrimitive(it)) }
           client.modelIdentifier?.let { put("modelIdentifier", JsonPrimitive(it)) }
@@ -289,8 +333,8 @@ class GatewaySession(
       val payload =
         buildDeviceAuthPayload(
           deviceId = identity.deviceId,
-          clientId = client.id,
-          clientMode = client.mode,
+          clientId = effectiveClientId,
+          clientMode = effectiveClientMode,
           role = options.role,
           scopes = options.scopes,
           signedAtMs = signedAtMs,
