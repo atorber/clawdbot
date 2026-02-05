@@ -1,0 +1,43 @@
+{
+  "name": "moltchat",
+  "version": "0.2.6",
+  "description": "OpenClaw channel plugin for MoltChat (MQTT-based enterprise IM)",
+  "keywords": [
+    "MoltChat",
+    "channel",
+    "im",
+    "mqtt",
+    "openclaw"
+  ],
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@atorber/mchat-client": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "pluginId": "moltchat"
+  }
+}

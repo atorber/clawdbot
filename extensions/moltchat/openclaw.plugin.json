@@ -1,0 +1,28 @@
+{
+  "id": "moltchat",
+  "name": "MoltChat",
+  "description": "MoltChat 企业 IM 渠道，基于 MQTT，支持单聊与群聊",
+  "version": "0.2.5",
+  "channels": ["moltchat"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": { "type": "boolean", "default": true },
+      "brokerHost": { "type": "string", "description": "MQTT Broker 主机" },
+      "brokerPort": { "type": "number", "description": "Broker 端口" },
+      "useTls": { "type": "boolean", "default": false },
+      "username": { "type": "string", "description": "MQTT 用户名（如 employee_id）" },
+      "password": { "type": "string", "description": "MQTT 密码" },
+      "employeeId": { "type": "string", "description": "员工 ID，与 auth.bind 一致" },
+      "clientId": { "type": "string", "description": "可选，MQTT client_id" },
+      "requestTimeoutMs": { "type": "number", "default": 30000 },
+      "groupIds": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "可选，要订阅的群 ID 列表；不填则仅收件箱"
+      }
+    },
+    "required": ["brokerHost", "brokerPort", "username", "password", "employeeId"]
+  }
+}
