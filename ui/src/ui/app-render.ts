@@ -1,6 +1,7 @@
 import { html, nothing } from "lit";
-import type { AppViewState } from "./app-view-state.ts";
+import type { AppViewState, SupportedLocale } from "./app-view-state.ts";
 import { parseAgentSessionKey } from "../../../src/routing/session-key.js";
+import { t, LOCALE_OPTIONS } from "../i18n.ts";
 import { ChatHost, refreshChatAvatar } from "./app-chat.ts";
 import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
 import { OpenClawApp } from "./app.ts";
@@ -140,8 +141,8 @@ export function renderApp(state: AppViewState) {
                 ...state.settings,
                 navCollapsed: !state.settings.navCollapsed,
               })}
-            title="${state.settings.navCollapsed ? "Expand sidebar" : "Collapse sidebar"}"
-            aria-label="${state.settings.navCollapsed ? "Expand sidebar" : "Collapse sidebar"}"
+            title="${state.settings.navCollapsed ? t("nav.expandSidebar") : t("nav.collapseSidebar")}"
+            aria-label="${state.settings.navCollapsed ? t("nav.expandSidebar") : t("nav.collapseSidebar")}"
           >
             <span class="nav-collapse-toggle__icon">${icons.menu}</span>
           </button>
@@ -161,6 +162,21 @@ export function renderApp(state: AppViewState) {
             <span>Health</span>
             <span class="mono">${state.connected ? "OK" : "Offline"}</span>
           </div>
+          <div class="topbar-locale" title="${t("i18n.language")}">
+            <select
+              class="topbar-locale__select"
+              .value=${state.locale}
+              @change=${(e: Event) => {
+                const v = (e.target as HTMLSelectElement).value;
+                if (v) state.applyLocale(v as SupportedLocale);
+              }}
+              aria-label="${t("i18n.language")}"
+            >
+              ${LOCALE_OPTIONS.map(
+                (opt) => html`<option value="${opt.value}">${t(opt.labelKey)}</option>`,
+              )}
+            </select>
+          </div>
           ${renderThemeToggle(state)}
         </div>
       </header>
@@ -168,6 +184,13 @@ export function renderApp(state: AppViewState) {
         ${TAB_GROUPS.map((group) => {
           const isGroupCollapsed = state.settings.navGroupsCollapsed[group.label] ?? false;
           const hasActiveTab = group.tabs.some((tab) => tab === state.tab);
+          const groupLabelKey =
+            {
+              Chat: "nav.chat",
+              Control: "nav.control",
+              Agent: "nav.agent",
+              Settings: "nav.settings",
+            }[group.label] ?? group.label;
           return html`
             <div class="nav-group ${isGroupCollapsed && !hasActiveTab ? "nav-group--collapsed" : ""}">
               <button
@@ -182,7 +205,7 @@ export function renderApp(state: AppViewState) {
                 }}
                 aria-expanded=${!isGroupCollapsed}
               >
-                <span class="nav-label__text">${group.label}</span>
+                <span class="nav-label__text">${t(groupLabelKey)}</span>
                 <span class="nav-label__chevron">${isGroupCollapsed ? "+" : "−"}</span>
               </button>
               <div class="nav-group__items">

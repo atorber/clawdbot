@@ -29,6 +29,8 @@ import type {
 import type { ChatAttachment, ChatQueueItem, CronFormState } from "./ui-types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 
+export type SupportedLocale = "en" | "zh-CN";
+
 export type AppViewState = {
   settings: UiSettings;
   password: string;
@@ -36,6 +38,8 @@ export type AppViewState = {
   onboarding: boolean;
   basePath: string;
   connected: boolean;
+  locale: SupportedLocale;
+  applyLocale: (locale: SupportedLocale) => void;
   theme: ThemeMode;
   themeResolved: "light" | "dark";
   hello: GatewayHelloOk | null;

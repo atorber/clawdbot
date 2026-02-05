@@ -1,4 +1,5 @@
 import type { IconName } from "./icons.js";
+import { t } from "../i18n.js";
 
 export const TAB_GROUPS = [
   { label: "Chat", tabs: ["chat"] },
@@ -151,35 +152,23 @@ export function iconForTab(tab: Tab): IconName {
   }
 }
 
+const TAB_TITLE_KEYS: Record<Tab, string> = {
+  agents: "nav.agents",
+  overview: "nav.overview",
+  channels: "nav.channels",
+  instances: "nav.instances",
+  sessions: "nav.sessions",
+  cron: "nav.cronJobs",
+  skills: "nav.skills",
+  nodes: "nav.nodes",
+  chat: "nav.chat",
+  config: "nav.config",
+  debug: "nav.debug",
+  logs: "nav.logs",
+};
+
 export function titleForTab(tab: Tab) {
-  switch (tab) {
-    case "agents":
-      return "Agents";
-    case "overview":
-      return "Overview";
-    case "channels":
-      return "Channels";
-    case "instances":
-      return "Instances";
-    case "sessions":
-      return "Sessions";
-    case "cron":
-      return "Cron Jobs";
-    case "skills":
-      return "Skills";
-    case "nodes":
-      return "Nodes";
-    case "chat":
-      return "Chat";
-    case "config":
-      return "Config";
-    case "debug":
-      return "Debug";
-    case "logs":
-      return "Logs";
-    default:
-      return "Control";
-  }
+  return t(TAB_TITLE_KEYS[tab] ?? "nav.control");
 }
 
 export function subtitleForTab(tab: Tab) {
