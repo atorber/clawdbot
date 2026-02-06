@@ -10,6 +10,7 @@ const zhCN: Record<string, string> = {
   "nav.channels": "频道",
   "nav.instances": "实例",
   "nav.sessions": "会话",
+  "nav.usage": "用量",
   "nav.cron": "定时",
   "nav.cronJobs": "定时任务",
   "nav.agents": "代理",

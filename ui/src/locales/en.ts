@@ -10,6 +10,7 @@ const en: Record<string, string> = {
   "nav.channels": "Channels",
   "nav.instances": "Instances",
   "nav.sessions": "Sessions",
+  "nav.usage": "Usage",
   "nav.cron": "Cron",
   "nav.cronJobs": "Cron Jobs",
   "nav.agents": "Agents",
