@@ -11,11 +11,11 @@ title: "Installer Internals"
 
 OpenClaw ships three installer scripts, served from `openclaw.ai`.
 
-| Script                              | Platform             | What it does                                                                                 |
-| ----------------------------------- | -------------------- | -------------------------------------------------------------------------------------------- |
-| [`install.sh`](#install-sh)         | macOS / Linux / WSL  | Installs Node if needed, installs OpenClaw via npm (default) or git, and can run onboarding. |
-| [`install-cli.sh`](#install-cli-sh) | macOS / Linux / WSL  | Installs Node + OpenClaw into a local prefix (`~/.openclaw`). No root required.              |
-| [`install.ps1`](#install-ps1)       | Windows (PowerShell) | Installs Node if needed, installs OpenClaw via npm (default) or git, and can run onboarding. |
+| Script                             | Platform             | What it does                                                                                 |
+| ---------------------------------- | -------------------- | -------------------------------------------------------------------------------------------- |
+| [`install.sh`](#installsh)         | macOS / Linux / WSL  | Installs Node if needed, installs OpenClaw via npm (default) or git, and can run onboarding. |
+| [`install-cli.sh`](#install-clish) | macOS / Linux / WSL  | Installs Node + OpenClaw into a local prefix (`~/.openclaw`). No root required.              |
+| [`install.ps1`](#installps1)       | Windows (PowerShell) | Installs Node if needed, installs OpenClaw via npm (default) or git, and can run onboarding. |
 
 ## Quick commands
 
@@ -64,7 +64,7 @@ If install succeeds but `openclaw` is not found in a new terminal, see [Node.js 
 Recommended for most interactive installs on macOS/Linux/WSL.
 </Tip>
 
-### Flow
+### Flow (install.sh)
 
 <Steps>
   <Step title="Detect OS">
@@ -98,7 +98,7 @@ If no TTY is available and no install method is set, it defaults to `npm` and wa
 
 The script exits with code `2` for invalid method selection or invalid `--install-method` values.
 
-### Examples
+### Examples (install.sh)
 
 <Tabs>
   <Tab title="Default">
@@ -171,7 +171,7 @@ The script exits with code `2` for invalid method selection or invalid `--instal
 Designed for environments where you want everything under a local prefix (default `~/.openclaw`) and no system Node dependency.
 </Info>
 
-### Flow
+### Flow (install-cli.sh)
 
 <Steps>
   <Step title="Install local Node runtime">
@@ -185,7 +185,7 @@ Designed for environments where you want everything under a local prefix (defaul
   </Step>
 </Steps>
 
-### Examples
+### Examples (install-cli.sh)
 
 <Tabs>
   <Tab title="Default">
@@ -245,7 +245,7 @@ Designed for environments where you want everything under a local prefix (defaul
 
 ## install.ps1
 
-### Flow
+### Flow (install.ps1)
 
 <Steps>
   <Step title="Ensure PowerShell + Windows environment">
@@ -263,7 +263,7 @@ Designed for environments where you want everything under a local prefix (defaul
   </Step>
 </Steps>
 
-### Examples
+### Examples (install.ps1)
 
 <Tabs>
   <Tab title="Default">
@@ -284,6 +284,14 @@ Designed for environments where you want everything under a local prefix (defaul
   <Tab title="Dry run">
     ```powershell
     & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -DryRun
+    ```
+  </Tab>
+  <Tab title="Debug trace">
+    ```powershell
+    # install.ps1 has no dedicated -Verbose flag yet.
+    Set-PSDebug -Trace 1
+    & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard
+    Set-PSDebug -Trace 0
     ```
   </Tab>
 </Tabs>
@@ -377,6 +385,18 @@ Use non-interactive flags/env vars for predictable runs.
 
   <Accordion title='Windows: "openclaw is not recognized"'>
     Run `npm config get prefix`, append `\bin`, add that directory to user PATH, then reopen PowerShell.
+  </Accordion>
+
+  <Accordion title="Windows: how to get verbose installer output">
+    `install.ps1` does not currently expose a `-Verbose` switch.
+    Use PowerShell tracing for script-level diagnostics:
+
+    ```powershell
+    Set-PSDebug -Trace 1
+    & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard
+    Set-PSDebug -Trace 0
+    ```
+
   </Accordion>
 
   <Accordion title="openclaw not found after install">
